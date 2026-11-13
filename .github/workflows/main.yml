@@ -21,7 +21,12 @@ jobs:
 
       - uses: android-actions/setup-android@v4
 
-      # خطوة مهمة: توليد ملف gradlew طالما أنه غير موجود في المستودع
+      # خطوة أساسية: الموافقة التلقائية على تراخيص Android SDK لمنع توقف البناء
+      - name: Accept Android SDK licenses
+        run: |
+          yes | sdkmanager --licenses || true
+
+      # توليد ملف gradlew طالما أنه غير موجود في المستودع
       - name: Generate Gradle Wrapper
         run: gradle wrapper --gradle-version 8.7
 
