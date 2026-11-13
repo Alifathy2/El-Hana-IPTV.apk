@@ -30,7 +30,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build signed release APK
-        run: ./gradlew :app:assembleRelease --no-daemon
+        run: ./gradlew :app:assembleRelease --no-daemon --stacktrace --info
 
       - name: Name the APK
         run: cp app/build/outputs/apk/release/app-release.apk El-Hana-IPTV.apk
