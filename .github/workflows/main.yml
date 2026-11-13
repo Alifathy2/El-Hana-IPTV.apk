@@ -26,7 +26,7 @@ jobs:
           gradle-version: '8.7'
 
       - name: Build signed release APK
-        run: gradle assembleRelease --no-daemon
+        run: ./gradlew :app:assembleRelease --no-daemon
 
       - name: Name the APK
         run: cp app/build/outputs/apk/release/app-release.apk El-Hana-IPTV.apk
