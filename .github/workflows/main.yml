@@ -32,6 +32,10 @@ jobs:
           mkdir -p app/src/main/java/com/elhana/iptv
           mkdir -p app/src/main/assets
           mkdir -p app/src/main/res/values
+          mkdir -p app/src/main/res/mipmap-mdpi
+          mkdir -p app/src/main/res/mipmap-hdpi
+          mkdir -p app/src/main/res/mipmap-xhdpi
+          mkdir -p app/src/main/res/mipmap-xxhdpi
           mkdir -p app/src/main/res/mipmap-xxxhdpi
 
           # 1. نسخ ملفات واجهة IPTV إلى مجلد assets داخل التطبيق
@@ -53,23 +57,21 @@ jobs:
             printf '%s\n' 'window.EH_QR=null;' > app/src/main/assets/qr.js
           fi
 
-          # 2. تحويل صورة الأيقونة (JPG أو غيرها) إلى PNG حقيقي متوافق مع AAPT
+          # 2. تثبيت مكتبة Pillow وتحويل صورة الأيقونة إلى PNG حقيقي بجميع المقاسات
           ICON_FILE=$(find . -maxdepth 2 \( -iname "ic_launcher.*" -o -iname "logo.*" -o -iname "*.png" -o -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.webp" \) | head -n 1)
           if [ -n "$ICON_FILE" ]; then
-            echo "🔍 جاري معالجة الأيقونة: $ICON_FILE"
-            if command -v convert >/dev/null 2>&1; then
-              convert "$ICON_FILE" -resize 512x512 PNG32:app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
-              convert "$ICON_FILE" -resize 512x512 PNG32:app/src/main/assets/logo.png
-            else
-              python3 -c '
+            echo "🔍 جاري تثبيت أداة الصور ومعالجة الأيقونة: $ICON_FILE"
+            sudo apt-get update -qq && sudo apt-get install -y -qq python3-pil
+            python3 -c '
           import sys
           from PIL import Image
-          im = Image.open(sys.argv[1]).convert("RGBA").resize((512, 512))
-          im.save("app/src/main/res/mipmap-xxxhdpi/ic_launcher.png", "PNG")
-          im.save("app/src/main/assets/logo.png", "PNG")
+          im = Image.open(sys.argv[1]).convert("RGBA")
+          sizes = [("mdpi", 48), ("hdpi", 72), ("xhdpi", 96), ("xxhdpi", 144), ("xxxhdpi", 192)]
+          for d, sz in sizes:
+              im.resize((sz, sz), Image.LANCZOS).save(f"app/src/main/res/mipmap-{d}/ic_launcher.png", "PNG")
+          im.resize((512, 512), Image.LANCZOS).save("app/src/main/assets/logo.png", "PNG")
           ' "$ICON_FILE"
-            fi
-            echo "✅ تم تحويل وتعيين الأيقونة بصيغة PNG سليمة"
+            echo "✅ تم تحويل وتعيين الأيقونة بصيغة PNG سليمة بجميع المقاسات"
           fi
 
           # 3. إنشاء ملفات إعداد Gradle
