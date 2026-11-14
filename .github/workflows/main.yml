@@ -23,27 +23,65 @@ jobs:
       - name: Accept Android SDK licenses
         run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null || true
 
-      # خطوة فحص هيكل المشروع وإصلاح الملفات الناقصة تلقائياً
-      - name: Verify and Fix Project Structure
+      # حل تعارض اسم app وتنظيم هيكل مشروع الأندرويد تلقائياً
+      - name: Fix Conflict and Build Project Structure
         run: |
-          echo "=== هيكل الملفات الحالي في المستودع ==="
-          find . -maxdepth 3 -not -path '*/.*'
+          echo "=== فحص ملفات المستودع الحالية ==="
+          ls -la
 
-          # 1. البحث عن مكان app/build.gradle إذا كان المشروع داخل مجلد فرعي
+          # 1. حل مشكلة وجود "ملف" باسم app يمنع إنشاء مجلد app/
+          if [ -e "app" ] && [ ! -d "app" ]; then
+            echo "⚠️ تم العثور على ملف (وليس مجلد) باسم app - جاري نقله إلى app_file_backup"
+            mv app app_file_backup
+          fi
+
+          # 2. البحث عن app/build.gradle في حال كان المشروع داخل مجلد فرعي آخر
           APP_GRADLE=$(find . -maxdepth 3 -path "*/app/build.gradle*" | head -n 1)
           if [ -n "$APP_GRADLE" ]; then
             PROJECT_ROOT=$(dirname $(dirname "$APP_GRADLE"))
             echo "PROJECT_ROOT=$PROJECT_ROOT" >> $GITHUB_ENV
-            echo "✅ تم العثور على المشروع في المسار: $PROJECT_ROOT"
-          else
-            echo "PROJECT_ROOT=." >> $GITHUB_ENV
-            echo "⚠️ لم يتم العثور على app/build.gradle، جاري التحقق من إمكانية إنشائه..."
-            
-            mkdir -p app/src/main
+            echo "✅ تم العثور على مشروع جاهز في: $PROJECT_ROOT"
+            exit 0
+          fi
 
-            # إنشاء settings.gradle إذا كان مفقوداً
-            if [ ! -f settings.gradle ] && [ ! -f settings.gradle.kts ]; then
-              cat << 'EOF' > settings.gradle
+          echo "PROJECT_ROOT=." >> $GITHUB_ENV
+          mkdir -p app/src/main/java/com/elhana/iptv
+          mkdir -p app/src/main/res/values
+
+          # 3. إذا كان build.gradle في الجذر هو ملف التطبيق نفسه (يحتوي على com.android.application)
+          if [ -f "build.gradle" ] && grep -q "com.android.application" build.gradle; then
+            echo "✅ نقل build.gradle الخاص بالتطبيق إلى مجلد app/"
+            mv build.gradle app/build.gradle
+          fi
+
+          # نقل مجلد src أو ملف AndroidManifest.xml إن وجدوا في الجذر إلى داخل app/src/main
+          if [ -d "src" ]; then
+            cp -r src/* app/src/ 2>/dev/null || true
+          fi
+          if [ -f "AndroidManifest.xml" ]; then
+            mv AndroidManifest.xml app/src/main/AndroidManifest.xml
+          fi
+
+          # 4. إنشاء AndroidManifest.xml افتراضي إذا لم يكن موجوداً (ضروري لنجاح assembleRelease)
+          if [ ! -f "app/src/main/AndroidManifest.xml" ]; then
+            cat << 'EOF' > app/src/main/AndroidManifest.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.INTERNET" />
+              <application
+                  android:allowBackup="true"
+                  android:label="El-Hana IPTV"
+                  android:supportsRtl="true"
+                  android:theme="@style/Theme.AppCompat.NoActionBar">
+              </application>
+          </manifest>
+          EOF
+            echo "✅ تم إنشاء AndroidManifest.xml أساسي"
+          fi
+
+          # 5. إنشاء settings.gradle إذا كان مفقوداً
+          if [ ! -f "settings.gradle" ] && [ ! -f "settings.gradle.kts" ]; then
+            cat << 'EOF' > settings.gradle
           pluginManagement {
               repositories {
                   google()
@@ -61,23 +99,21 @@ jobs:
           rootProject.name = "El-Hana-IPTV"
           include ':app'
           EOF
-              echo "✅ تم إنشاء settings.gradle"
-            fi
+          fi
 
-            # إنشاء build.gradle الرئيسي إذا كان مفقوداً
-            if [ ! -f build.gradle ] && [ ! -f build.gradle.kts ]; then
-              cat << 'EOF' > build.gradle
+          # 6. إنشاء build.gradle الرئيسي
+          if [ ! -f "build.gradle" ] && [ ! -f "build.gradle.kts" ]; then
+            cat << 'EOF' > build.gradle
           plugins {
               id 'com.android.application' version '8.2.2' apply false
               id 'org.jetbrains.kotlin.android' version '1.9.22' apply false
           }
           EOF
-              echo "✅ تم إنشاء build.gradle الرئيسي"
-            fi
+          fi
 
-            # إنشاء app/build.gradle إذا كان مفقوداً
-            if [ ! -f app/build.gradle ] && [ ! -f app/build.gradle.kts ]; then
-              cat << 'EOF' > app/build.gradle
+          # 7. إنشاء app/build.gradle إذا لم يكن قد نُقل في الخطوة 3
+          if [ ! -f "app/build.gradle" ] && [ ! -f "app/build.gradle.kts" ]; then
+            cat << 'EOF' > app/build.gradle
           plugins {
               id 'com.android.application'
           }
@@ -111,9 +147,10 @@ jobs:
               implementation 'com.google.android.material:material:1.11.0'
           }
           EOF
-              echo "✅ تم إنشاء app/build.gradle"
-            fi
           fi
+
+          echo "=== تم تجهيز هيكل المشروع بنجاح ==="
+          find . -maxdepth 4 -not -path '*/.*'
 
       # إعداد Gradle
       - name: Setup Gradle
@@ -121,12 +158,12 @@ jobs:
         with:
           gradle-version: '8.7'
 
-      # بناء نسخة الـ Release من المسار الصحيح للمشروع
+      # بناء نسخة الـ Release
       - name: Build release APK
         working-directory: ${{ env.PROJECT_ROOT }}
         run: gradle :app:assembleRelease --no-daemon --stacktrace
 
-      # تجهيز وتوقيع الـ APK تلقائياً
+      # تجهيز وتوقيع الـ APK تلقائياً بمفتاح مؤقت ليعمل على أي موبايل فوراً
       - name: Sign APK automatically
         working-directory: ${{ env.PROJECT_ROOT }}
         run: |
