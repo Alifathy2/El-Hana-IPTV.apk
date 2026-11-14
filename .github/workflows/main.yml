@@ -22,135 +22,174 @@ jobs:
       - name: Accept Android SDK licenses
         run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null || true
 
-      # الخطوة 1: نسخ وتجهيز ملفات الويب والأيقونات
-      - name: Step 1 - Prepare Web Assets & Icons
+      - name: Build Full Android App (Fixed Playback, Weather, OTA & Fixed Keystore)
         run: |
-          if [ -e "app" ] && [ ! -d "app" ]; then mv app app_file_backup; fi
+          if [ -e "app" ] && [ ! -d "app" ]; then
+            mv app app_file_backup
+          fi
           rm -f settings.gradle.kts build.gradle.kts app/build.gradle.kts
-          mkdir -p app/src/main/java/com/elhana/iptv app/src/main/assets app/src/main/res/values
-          mkdir -p app/src/main/res/mipmap-mdpi app/src/main/res/mipmap-hdpi app/src/main/res/mipmap-xhdpi app/src/main/res/mipmap-xxhdpi app/src/main/res/mipmap-xxxhdpi
 
+          mkdir -p app/src/main/java/com/elhana/iptv
+          mkdir -p app/src/main/assets
+          mkdir -p app/src/main/res/values
+          mkdir -p app/src/main/res/mipmap-mdpi
+          mkdir -p app/src/main/res/mipmap-hdpi
+          mkdir -p app/src/main/res/mipmap-xhdpi
+          mkdir -p app/src/main/res/mipmap-xxhdpi
+          mkdir -p app/src/main/res/mipmap-xxxhdpi
+
+          # 1. نسخ ملفات واجهة IPTV المحدثة إلى مجلد assets كما هي بدون أي تشويه
           for f in index.html style.css app.js add.html version.json qr.js ota.js; do
-            if [ -f "$f" ]; then cp "$f" "app/src/main/assets/$f"; fi
+            if [ -f "$f" ]; then
+              cp "$f" "app/src/main/assets/$f"
+            fi
           done
-          if [ -d "fonts" ]; then cp -r fonts app/src/main/assets/; fi
+          if [ -d "fonts" ]; then
+            cp -r fonts app/src/main/assets/
+          fi
 
+          # 2. ضبط روابط التحديث في app.js لتتصل بالمستودع الصحيح بصمت
           if [ -f "app/src/main/assets/app.js" ]; then
-            sed -i "s/else if (c.contains('tab')) setType/else if (t.id === 'btnHome') showHome(); else if (c.contains('tab')) setType/g" app/src/main/assets/app.js
             sed -i "s|var _U1 = .*;|var _U1 = 'https://raw.githubusercontent.com/Alifathy2/El-Hana-IPTV.apk/main';|g" app/src/main/assets/app.js
             sed -i "s|var _U2 = .*;|var _U2 = 'https://alifathy2.github.io/El-Hana-IPTV.apk';|g" app/src/main/assets/app.js
-            sed -i "s/function exitApp() {/function exitApp() { if (window.AndroidApp \&\& AndroidApp.exitApp) { AndroidApp.exitApp(); return; }/g" app/src/main/assets/app.js
-          fi
 
-          if [ -f "app/src/main/assets/style.css" ]; then
-            printf '\n%s\n' \
-              'html, body, #player { background-color: transparent !important; }' \
-              '.screen { background-color: var(--bg); background-image: radial-gradient(ellipse at 15% 0%,var(--bg1) 0%,rgba(9,14,28,0) 58%),radial-gradient(ellipse at 100% 100%,var(--bg2) 0%,rgba(9,14,28,0) 55%); background-size: cover; background-position: center; }' \
-              'button, input, .f, #video, #player { touch-action: manipulation; cursor: pointer; }' \
-              '#cats, #content, .det-eps, .terms-body { -webkit-overflow-scrolling: touch; }' >> app/src/main/assets/style.css
-          fi
+            cat << 'EOF' >> app/src/main/assets/app.js
 
-          printf '%s\n' \
-            '(function(){try{var r=localStorage.getItem("elhana.ota");if(r){var o=JSON.parse(r);if(o&&o.version&&o.js&&o.css&&o.index){window.EH_VER=o.version;window.EH_OTA=true;var st=document.querySelector("link[href=\"style.css\"]");if(st)st.remove();var s=document.createElement("style");s.textContent=o.css;document.head.appendChild(s);var m=o.index.match(/<body[^>]*>([\s\S]*?)<\/body>/i);if(m)document.body.innerHTML=m[1];var sc=document.createElement("script");sc.textContent=o.js;document.body.appendChild(sc);return;}}}catch(e){}var d=document.createElement("script");d.src="app.js";document.body.appendChild(d);})();' > app/src/main/assets/ota.js
-
-          if [ ! -f "app/src/main/assets/qr.js" ]; then printf '%s\n' 'window.EH_QR=null;' > app/src/main/assets/qr.js; fi
-
-          ICON_FILE=$(find . -maxdepth 2 \( -iname "ic_launcher.*" -o -iname "logo.*" -o -iname "*.png" -o -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.webp" \) | head -n 1)
-          if [ -n "$ICON_FILE" ]; then
-            sudo apt-get update -qq && sudo apt-get install -y -qq python3-pil
-            python3 -c 'import sys; from PIL import Image; im=Image.open(sys.argv[1]).convert("RGBA"); [im.resize((s,s),Image.LANCZOS).save(f"app/src/main/res/mipmap-{d}/ic_launcher.png","PNG") for d,s in [("mdpi",48),("hdpi",72),("xhdpi",96),("xxhdpi",144),("xxxhdpi",192)]]; im.resize((512,512),Image.LANCZOS).save("app/src/main/assets/logo.png","PNG")' "$ICON_FILE"
-          fi
-
-      # الخطوة 2: حقن كود ExoPlayer والطقس واللمس في app.js
-      - name: Step 2 - Inject ExoPlayer & Weather Bridge into app.js
-        run: |
-          cat << 'EOF' >> app/src/main/assets/app.js
+          /* --- جسر التوافق الكامل مع غلاف الأندرويد والطقس --- */
           (function () {
-            var pEl = document.getElementById('player'), vEl = document.getElementById('video'), osdEl = document.getElementById('osd');
-            if (pEl && osdEl) {
-              pEl.addEventListener('click', function (e) {
-                if (e.target === pEl || e.target === vEl) osdEl.classList.toggle('hidden');
-              });
-            }
-            if (window.AndroidApp && AndroidApp.exoPlay && vEl) {
-              vEl.style.opacity = '0';
-              Object.defineProperty(vEl, 'src', {
-                get: function () { return this._exoUrl || ''; },
-                set: function (u) {
-                  this._exoUrl = u || '';
-                  if (u) {
-                    var msgEl = document.getElementById('playerMsg');
-                    if (msgEl) msgEl.classList.add('hidden');
-                    AndroidApp.exoPlay(u);
-                  } else AndroidApp.exoStop();
-                }
-              });
-              vEl.play = function () { AndroidApp.exoResume(); return Promise.resolve(); };
-              vEl.pause = function () { AndroidApp.exoPause(); };
-              vEl.removeAttribute = function (a) { if (a === 'src') { this._exoUrl = ''; AndroidApp.exoStop(); } };
-              window._exoTick = function (posSec, durSec) {
-                if (durSec > 0) {
-                  var fill = document.getElementById('osdFill'), tm = document.getElementById('osdTime');
-                  if (fill) fill.style.width = Math.min(100, (posSec / durSec * 100)) + '%';
-                  if (tm) {
-                    var f = function (s) { s = Math.max(0, Math.floor(s)); var h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sc = s % 60; return (h ? h + ':' + (m < 10 ? '0' : '') + m : m) + ':' + (sc < 10 ? '0' : '') + sc; };
-                    tm.textContent = f(posSec) + ' / ' + f(durSec);
-                  }
-                }
-              };
-              window._exoError = function () {
-                var msgEl = document.getElementById('playerMsg');
-                if (msgEl) { msgEl.textContent = 'تعذر تشغيل هذا المحتوى'; msgEl.classList.remove('hidden'); }
-              };
-              document.addEventListener('click', function (e) {
-                var b = e.target.closest ? e.target.closest('.pb') : null;
-                if (!b) return;
-                var act = b.getAttribute('data-act');
-                if (act === 'rew') AndroidApp.exoSeek(-10000);
-                else if (act === 'fwd') AndroidApp.exoSeek(30000);
-                else if (act === 'play') AndroidApp.exoToggle();
-                else if (act === 'stop' || act === 'back') AndroidApp.exoStop();
-              }, true);
-            }
-            function loadWeather() {
-              var x = new XMLHttpRequest(); x.open('GET', 'https://ipwho.is/', true); x.timeout = 8000;
+            function loadWeatherReliable() {
+              var x = new XMLHttpRequest();
+              x.open('GET', 'https://ipwho.is/', true);
+              x.timeout = 8000;
               x.onload = function () {
-                try { var d = JSON.parse(x.responseText); if (d && d.success && d.latitude) { getMeteo(d.latitude, d.longitude, d.city || 'مصر'); return; } } catch (e) {}
+                try {
+                  var d = JSON.parse(x.responseText);
+                  if (d && d.success && d.latitude && d.longitude) {
+                    getMeteo(d.latitude, d.longitude, d.city || d.country || 'مصر');
+                    return;
+                  }
+                } catch (e) {}
                 getMeteo(31.036, 30.468, 'مصر');
               };
               x.onerror = x.ontimeout = function () { getMeteo(31.036, 30.468, 'مصر'); };
               x.send();
             }
             function getMeteo(lat, lon, city) {
-              var w = new XMLHttpRequest(); w.open('GET', 'https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lon + '&current_weather=true', true);
+              var w = new XMLHttpRequest();
+              w.open('GET', 'https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lon + '&current_weather=true', true);
+              w.timeout = 8000;
               w.onload = function () {
                 try {
-                  var r = JSON.parse(w.responseText);
-                  if (r && r.current_weather) {
-                    var t = Math.round(r.current_weather.temperature), c = r.current_weather.weathercode;
+                  var res = JSON.parse(w.responseText);
+                  if (res && res.current_weather) {
+                    var t = Math.round(res.current_weather.temperature);
+                    var c = res.current_weather.weathercode;
                     var ico = c === 0 ? '☀️' : (c <= 3 ? '⛅' : (c <= 48 ? '🌫️' : (c <= 67 ? '🌧️' : '⛈️')));
-                    if (document.getElementById('hwLoc')) document.getElementById('hwLoc').textContent = city;
-                    if (document.getElementById('hwWeather')) document.getElementById('hwWeather').textContent = ico + ' ' + t + '°C';
+                    var elLoc = document.getElementById('hwLoc');
+                    var elW = document.getElementById('hwWeather');
+                    if (elLoc) elLoc.textContent = city;
+                    if (elW) elW.textContent = ico + ' ' + t + '°C';
                   }
                 } catch (e) {}
               };
               w.send();
             }
-            setTimeout(loadWeather, 1500);
+            setTimeout(loadWeatherReliable, 1500);
+            setInterval(loadWeatherReliable, 1800000);
           })();
           EOF
+          fi
 
-      # الخطوة 3: إنشاء ملفات Gradle و MainActivity و AndroidManifest
-      - name: Step 3 - Generate Android Native Files & Gradle Config
-        env:
-          RUN_NUM: ${{ github.run_number }}
-        run: |
-          printf '%s\n' 'pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }' 'dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }' 'rootProject.name = "El-Hana-IPTV"' 'include ":app"' > settings.gradle
-          printf '%s\n' 'plugins { id "com.android.application" version "8.5.2" apply false }' > build.gradle
-          printf '%s\n' 'android.useAndroidX=true' 'android.enableJetifier=true' 'org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8' > gradle.properties
+          # 3. تحسين استجابة اللمس في style.css دون تكرار
+          if [ -f "app/src/main/assets/style.css" ]; then
+            if ! grep -q "touch-action: manipulation" app/src/main/assets/style.css; then
+              printf '\n%s\n' \
+                'button, input, .f, #video, #player { touch-action: manipulation; cursor: pointer; }' \
+                '#cats, #content, .det-eps, .terms-body { -webkit-overflow-scrolling: touch; }' >> app/src/main/assets/style.css
+            fi
+          fi
+
+          # 4. محرك التحديث التلقائي عن بُعد (OTA)
+          printf '%s\n' \
+            '(function () {' \
+            '  try {' \
+            '    var raw = localStorage.getItem("elhana.ota");' \
+            '    if (raw) {' \
+            '      var ota = JSON.parse(raw);' \
+            '      if (ota && ota.version && ota.js && ota.css && ota.index) {' \
+            '        window.EH_VER = ota.version;' \
+            '        window.EH_OTA = true;' \
+            '        var st = document.querySelector("link[href=\"style.css\"]");' \
+            '        if (st) st.remove();' \
+            '        var sTag = document.createElement("style");' \
+            '        sTag.textContent = ota.css;' \
+            '        document.head.appendChild(sTag);' \
+            '        var m = ota.index.match(/<body[^>]*>([\s\S]*?)<\/body>/i);' \
+            '        if (m) document.body.innerHTML = m[1];' \
+            '        var sc = document.createElement("script");' \
+            '        sc.textContent = ota.js;' \
+            '        document.body.appendChild(sc);' \
+            '        return;' \
+            '      }' \
+            '    }' \
+            '  } catch (e) {}' \
+            '  var def = document.createElement("script");' \
+            '  def.src = "app.js";' \
+            '  document.body.appendChild(def);' \
+            '})();' > app/src/main/assets/ota.js
+
+          if [ ! -f "app/src/main/assets/qr.js" ]; then
+            printf '%s\n' 'window.EH_QR=null;' > app/src/main/assets/qr.js
+          fi
+
+          # 5. معالجة الأيقونة بجميع المقاسات
+          ICON_FILE=$(find . -maxdepth 2 \( -iname "ic_launcher.*" -o -iname "logo.*" -o -iname "*.png" -o -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.webp" \) | head -n 1)
+          if [ -n "$ICON_FILE" ]; then
+            sudo apt-get update -qq && sudo apt-get install -y -qq python3-pil
+            python3 -c '
+          import sys
+          from PIL import Image
+          im = Image.open(sys.argv[1]).convert("RGBA")
+          sizes = [("mdpi", 48), ("hdpi", 72), ("xhdpi", 96), ("xxhdpi", 144), ("xxxhdpi", 192)]
+          for d, sz in sizes:
+              im.resize((sz, sz), Image.LANCZOS).save(f"app/src/main/res/mipmap-{d}/ic_launcher.png", "PNG")
+          im.resize((512, 512), Image.LANCZOS).save("app/src/main/assets/logo.png", "PNG")
+          ' "$ICON_FILE"
+          fi
+
+          # 6. إعداد Gradle
+          printf '%s\n' \
+            'pluginManagement {' \
+            '    repositories {' \
+            '        google()' \
+            '        mavenCentral()' \
+            '        gradlePluginPortal()' \
+            '    }' \
+            '}' \
+            'dependencyResolutionManagement {' \
+            '    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)' \
+            '    repositories {' \
+            '        google()' \
+            '        mavenCentral()' \
+            '    }' \
+            '}' \
+            'rootProject.name = "El-Hana-IPTV"' \
+            'include ":app"' > settings.gradle
 
           printf '%s\n' \
-            'plugins { id "com.android.application" }' \
+            'plugins {' \
+            '    id "com.android.application" version "8.5.2" apply false' \
+            '}' > build.gradle
+
+          printf '%s\n' \
+            'android.useAndroidX=true' \
+            'android.enableJetifier=true' \
+            'org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8' > gradle.properties
+
+          printf '%s\n' \
+            'plugins {' \
+            '    id "com.android.application"' \
+            '}' \
             'android {' \
             '    namespace "com.elhana.iptv"' \
             '    compileSdk 34' \
@@ -158,66 +197,179 @@ jobs:
             '        applicationId "com.elhana.iptv"' \
             '        minSdk 21' \
             '        targetSdk 34' \
-            "        versionCode $RUN_NUM" \
-            "        versionName \"2.4.$RUN_NUM\"" \
+            '        versionCode ${{ github.run_number }}' \
+            '        versionName "2.3.${{ github.run_number }}"' \
             '    }' \
-            '    buildTypes { release { minifyEnabled false; proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro" } }' \
-            '    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }' \
+            '    buildTypes {' \
+            '        release {' \
+            '            minifyEnabled false' \
+            '            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"' \
+            '        }' \
+            '    }' \
+            '    compileOptions {' \
+            '        sourceCompatibility JavaVersion.VERSION_17' \
+            '        targetCompatibility JavaVersion.VERSION_17' \
+            '    }' \
             '}' \
             'dependencies {' \
             '    implementation "androidx.appcompat:appcompat:1.6.1"' \
-            '    implementation "androidx.media3:media3-exoplayer:1.3.1"' \
-            '    implementation "androidx.media3:media3-exoplayer-hls:1.3.1"' \
             '}' > app/build.gradle
 
+          # 7. كود MainActivity متوافق بالكامل مع goBack() و exitApp() و openExternal()
           printf '%s\n' \
             'package com.elhana.iptv;' \
-            'import android.app.Activity; import android.content.Intent; import android.graphics.Color; import android.net.Uri; import android.os.Bundle; import android.os.Handler; import android.os.Looper; import android.view.KeyEvent; import android.view.SurfaceView; import android.view.View; import android.view.WindowManager; import android.webkit.JavascriptInterface; import android.webkit.ValueCallback; import android.webkit.WebChromeClient; import android.webkit.WebSettings; import android.webkit.WebView; import android.webkit.WebViewClient; import android.widget.FrameLayout;' \
-            'import androidx.activity.OnBackPressedCallback; import androidx.appcompat.app.AppCompatActivity;' \
-            'import androidx.media3.common.MediaItem; import androidx.media3.common.PlaybackException; import androidx.media3.common.Player; import androidx.media3.datasource.DefaultHttpDataSource; import androidx.media3.exoplayer.ExoPlayer; import androidx.media3.exoplayer.source.DefaultMediaSourceFactory;' \
+            'import android.app.Activity;' \
+            'import android.content.Intent;' \
+            'import android.net.Uri;' \
+            'import android.os.Build;' \
+            'import android.os.Bundle;' \
+            'import android.view.KeyEvent;' \
+            'import android.view.View;' \
+            'import android.view.WindowManager;' \
+            'import android.webkit.JavascriptInterface;' \
+            'import android.webkit.ValueCallback;' \
+            'import android.webkit.WebChromeClient;' \
+            'import android.webkit.WebSettings;' \
+            'import android.webkit.WebView;' \
+            'import android.webkit.WebViewClient;' \
+            'import androidx.activity.OnBackPressedCallback;' \
+            'import androidx.appcompat.app.AppCompatActivity;' \
             'public class MainActivity extends AppCompatActivity {' \
-            '    private WebView webView; private SurfaceView videoSurface; private ExoPlayer exoPlayer;' \
-            '    private Handler handler = new Handler(Looper.getMainLooper());' \
-            '    private ValueCallback<Uri[]> filePathCallback; private static final int FILE_CHOOSER_REQ = 1001;' \
-            '    private Runnable tickRunnable = new Runnable() { @Override public void run() { if (exoPlayer != null && exoPlayer.isPlaying()) { long pos = exoPlayer.getCurrentPosition() / 1000; long dur = Math.max(0, exoPlayer.getDuration() / 1000); webView.evaluateJavascript("if(window._exoTick)_exoTick(" + pos + "," + dur + ");", null); } handler.postDelayed(this, 1000); } };' \
+            '    private WebView webView;' \
+            '    private ValueCallback<Uri[]> filePathCallback;' \
+            '    private static final int FILE_CHOOSER_REQ = 1001;' \
             '    public class AndroidBridge {' \
-            '        @JavascriptInterface public boolean isAndroid() { return true; }' \
-            '        @JavascriptInterface public void exitApp() { runOnUiThread(() -> { finishAffinity(); System.exit(0); }); }' \
-            '        @JavascriptInterface public void exoPlay(String url) { runOnUiThread(() -> { if (exoPlayer == null) return; videoSurface.setVisibility(View.VISIBLE); exoPlayer.stop(); exoPlayer.setMediaItem(MediaItem.fromUri(Uri.parse(url))); exoPlayer.prepare(); exoPlayer.play(); }); }' \
-            '        @JavascriptInterface public void exoStop() { runOnUiThread(() -> { if (exoPlayer != null) exoPlayer.stop(); videoSurface.setVisibility(View.GONE); }); }' \
-            '        @JavascriptInterface public void exoPause() { runOnUiThread(() -> { if (exoPlayer != null) exoPlayer.pause(); }); }' \
-            '        @JavascriptInterface public void exoResume() { runOnUiThread(() -> { if (exoPlayer != null) exoPlayer.play(); }); }' \
-            '        @JavascriptInterface public void exoToggle() { runOnUiThread(() -> { if (exoPlayer == null) return; if (exoPlayer.isPlaying()) exoPlayer.pause(); else exoPlayer.play(); }); }' \
-            '        @JavascriptInterface public void exoSeek(long deltaMs) { runOnUiThread(() -> { if (exoPlayer != null) exoPlayer.seekTo(Math.max(0, exoPlayer.getCurrentPosition() + deltaMs)); }); }' \
+            '        @JavascriptInterface' \
+            '        public boolean isAndroid() { return true; }' \
+            '        @JavascriptInterface' \
+            '        public void exitApp() {' \
+            '            runOnUiThread(new Runnable() {' \
+            '                @Override' \
+            '                public void run() {' \
+            '                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {' \
+            '                        finishAndRemoveTask();' \
+            '                    } else {' \
+            '                        finishAffinity();' \
+            '                    }' \
+            '                    android.os.Process.killProcess(android.os.Process.myPid());' \
+            '                }' \
+            '            });' \
+            '        }' \
+            '        @JavascriptInterface' \
+            '        public void openExternal(String url) {' \
+            '            runOnUiThread(new Runnable() {' \
+            '                @Override' \
+            '                public void run() {' \
+            '                    try {' \
+            '                        Intent i = new Intent(Intent.ACTION_VIEW);' \
+            '                        i.setDataAndType(Uri.parse(url), "video/*");' \
+            '                        startActivity(Intent.createChooser(i, "تشغيل الفيديو باستخدام"));' \
+            '                    } catch (Exception e) {}' \
+            '                }' \
+            '            });' \
+            '        }' \
+            '        @JavascriptInterface' \
+            '        public void openExternalPlayer(String url, String title) {' \
+            '            openExternal(url);' \
+            '        }' \
             '    }' \
-            '    @Override protected void onCreate(Bundle savedInstanceState) {' \
+            '    @Override' \
+            '    protected void onCreate(Bundle savedInstanceState) {' \
             '        super.onCreate(savedInstanceState);' \
             '        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);' \
-            '        getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);' \
-            '        FrameLayout root = new FrameLayout(this); root.setBackgroundColor(Color.BLACK);' \
-            '        videoSurface = new SurfaceView(this); videoSurface.setVisibility(View.GONE);' \
-            '        root.addView(videoSurface, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));' \
-            '        DefaultHttpDataSource.Factory httpFactory = new DefaultHttpDataSource.Factory().setUserAgent("VLC/3.0.18 LibVLC/3.0.18").setAllowCrossProtocolRedirects(true);' \
-            '        exoPlayer = new ExoPlayer.Builder(this).setMediaSourceFactory(new DefaultMediaSourceFactory(this).setDataSourceFactory(httpFactory)).build();' \
-            '        exoPlayer.setVideoSurfaceView(videoSurface);' \
-            '        exoPlayer.addListener(new Player.Listener() { @Override public void onPlayerError(PlaybackException error) { webView.evaluateJavascript("if(window._exoError)_exoError();", null); } });' \
-            '        webView = new WebView(this); webView.setBackgroundColor(Color.TRANSPARENT);' \
-            '        WebSettings ws = webView.getSettings(); ws.setJavaScriptEnabled(true); ws.setDomStorageEnabled(true); ws.setDatabaseEnabled(true); ws.setAllowFileAccess(true); ws.setAllowContentAccess(true); ws.setAllowFileAccessFromFileURLs(true); ws.setAllowUniversalAccessFromFileURLs(true); ws.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW); ws.setUseWideViewPort(true); ws.setLoadWithOverviewMode(true); webView.setInitialScale(1);' \
+            '        getWindow().getDecorView().setSystemUiVisibility(' \
+            '            View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY' \
+            '        );' \
+            '        webView = new WebView(this);' \
+            '        WebSettings ws = webView.getSettings();' \
+            '        ws.setJavaScriptEnabled(true);' \
+            '        ws.setDomStorageEnabled(true);' \
+            '        ws.setDatabaseEnabled(true);' \
+            '        ws.setAllowFileAccess(true);' \
+            '        ws.setAllowContentAccess(true);' \
+            '        ws.setAllowFileAccessFromFileURLs(true);' \
+            '        ws.setAllowUniversalAccessFromFileURLs(true);' \
+            '        ws.setMediaPlaybackRequiresUserGesture(false);' \
+            '        ws.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);' \
+            '        ws.setUserAgentString("VLC/3.0.18 LibVLC/3.0.18");' \
+            '        ws.setUseWideViewPort(true);' \
+            '        ws.setLoadWithOverviewMode(true);' \
+            '        webView.setInitialScale(1);' \
             '        webView.addJavascriptInterface(new AndroidBridge(), "AndroidApp");' \
             '        webView.setWebViewClient(new WebViewClient());' \
-            '        webView.setWebChromeClient(new WebChromeClient() { @Override public boolean onShowFileChooser(WebView wv, ValueCallback<Uri[]> cb, FileChooserParams params) { if (filePathCallback != null) filePathCallback.onReceiveValue(null); filePathCallback = cb; Intent i = new Intent(Intent.ACTION_GET_CONTENT); i.addCategory(Intent.CATEGORY_OPENABLE); i.setType("image/*"); startActivityForResult(Intent.createChooser(i, "Choose Image"), FILE_CHOOSER_REQ); return true; } });' \
-            '        root.addView(webView, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));' \
-            '        setContentView(root); webView.loadUrl("file:///android_asset/index.html"); handler.postDelayed(tickRunnable, 1000);' \
-            '        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) { @Override public void handleOnBackPressed() { webView.evaluateJavascript("if(typeof goBack===\"function\"){goBack();}", null); } });' \
+            '        webView.setWebChromeClient(new WebChromeClient() {' \
+            '            @Override' \
+            '            public boolean onShowFileChooser(WebView wv, ValueCallback<Uri[]> cb, FileChooserParams params) {' \
+            '                if (filePathCallback != null) filePathCallback.onReceiveValue(null);' \
+            '                filePathCallback = cb;' \
+            '                Intent intent = new Intent(Intent.ACTION_GET_CONTENT);' \
+            '                intent.addCategory(Intent.CATEGORY_OPENABLE);' \
+            '                intent.setType("image/*");' \
+            '                startActivityForResult(Intent.createChooser(intent, "Choose Image"), FILE_CHOOSER_REQ);' \
+            '                return true;' \
+            '            }' \
+            '        });' \
+            '        setContentView(webView);' \
+            '        webView.loadUrl("file:///android_asset/index.html");' \
+            '        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {' \
+            '            @Override' \
+            '            public void handleOnBackPressed() {' \
+            '                webView.evaluateJavascript("if(typeof window.EH_BACK===\"function\"){window.EH_BACK();}else if(typeof goBack===\"function\"){goBack();}", null);' \
+            '            }' \
+            '        });' \
             '    }' \
-            '    @Override public boolean dispatchKeyEvent(KeyEvent event) { if (event.getKeyCode() == KeyEvent.KEYCODE_BACK && event.getAction() == KeyEvent.ACTION_UP) { webView.evaluateJavascript("if(typeof goBack===\"function\"){goBack();}", null); return true; } return super.dispatchKeyEvent(event); }' \
-            '    @Override protected void onDestroy() { super.onDestroy(); handler.removeCallbacks(tickRunnable); if (exoPlayer != null) exoPlayer.release(); }' \
-            '    @Override protected void onActivityResult(int req, int res, Intent data) { super.onActivityResult(req, res, data); if (req == FILE_CHOOSER_REQ && filePathCallback != null) { Uri[] results = (res == Activity.RESULT_OK && data != null && data.getData() != null) ? new Uri[]{data.getData()} : null; filePathCallback.onReceiveValue(results); filePathCallback = null; } }' \
+            '    @Override' \
+            '    public boolean dispatchKeyEvent(KeyEvent event) {' \
+            '        if (event.getKeyCode() == KeyEvent.KEYCODE_BACK && event.getAction() == KeyEvent.ACTION_UP) {' \
+            '            webView.evaluateJavascript("if(typeof window.EH_BACK===\"function\"){window.EH_BACK();}else if(typeof goBack===\"function\"){goBack();}", null);' \
+            '            return true;' \
+            '        }' \
+            '        return super.dispatchKeyEvent(event);' \
+            '    }' \
+            '    @Override' \
+            '    protected void onActivityResult(int req, int res, Intent data) {' \
+            '        super.onActivityResult(req, res, data);' \
+            '        if (req == FILE_CHOOSER_REQ && filePathCallback != null) {' \
+            '            Uri[] results = (res == Activity.RESULT_OK && data != null && data.getData() != null) ? new Uri[]{data.getData()} : null;' \
+            '            filePathCallback.onReceiveValue(results);' \
+            '            filePathCallback = null;' \
+            '        }' \
+            '    }' \
             '}' > app/src/main/java/com/elhana/iptv/MainActivity.java
 
+          # 8. إنشاء AndroidManifest.xml
           ICON_ATTR=""
-          if [ -f "app/src/main/res/mipmap-xxxhdpi/ic_launcher.png" ]; then ICON_ATTR='android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher"'; fi
-          printf '%s\n' '<?xml version="1.0" encoding="utf-8"?>' '<manifest xmlns:android="http://schemas.android.com/apk/res/android">' '    <uses-permission android:name="android.permission.INTERNET" />' '    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />' '    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />' '    <application android:allowBackup="true" android:usesCleartextTraffic="true" android:hardwareAccelerated="true" '"$ICON_ATTR"' android:label="El Hana IPTV" android:supportsRtl="true" android:theme="@style/Theme.AppCompat.NoActionBar">' '        <activity android:name=".MainActivity" android:configChanges="orientation|screenSize|keyboardHidden" android:screenOrientation="sensorLandscape" android:exported="true">' '            <intent-filter><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /><category android:name="android.intent.category.LEANBACK_LAUNCHER" /></intent-filter>' '        </activity>' '    </application>' '</manifest>' > app/src/main/AndroidManifest.xml
+          if [ -f "app/src/main/res/mipmap-xxxhdpi/ic_launcher.png" ]; then
+            ICON_ATTR='android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher"'
+          fi
+
+          printf '%s\n' \
+            '<?xml version="1.0" encoding="utf-8"?>' \
+            '<manifest xmlns:android="http://schemas.android.com/apk/res/android">' \
+            '    <uses-permission android:name="android.permission.INTERNET" />' \
+            '    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />' \
+            '    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />' \
+            '    <application' \
+            '        android:allowBackup="true"' \
+            '        android:usesCleartextTraffic="true"' \
+            '        android:hardwareAccelerated="true"' \
+            "        $ICON_ATTR" \
+            '        android:label="El Hana IPTV"' \
+            '        android:supportsRtl="true"' \
+            '        android:theme="@style/Theme.AppCompat.NoActionBar">' \
+            '        <activity' \
+            '            android:name=".MainActivity"' \
+            '            android:configChanges="orientation|screenSize|keyboardHidden"' \
+            '            android:screenOrientation="sensorLandscape"' \
+            '            android:exported="true">' \
+            '            <intent-filter>' \
+            '                <action android:name="android.intent.action.MAIN" />' \
+            '                <category android:name="android.intent.category.LAUNCHER" />' \
+            '                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />' \
+            '            </intent-filter>' \
+            '        </activity>' \
+            '    </application>' \
+            '</manifest>' > app/src/main/AndroidManifest.xml
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -229,11 +381,33 @@ jobs:
 
       - name: Sign APK with Fixed Deterministic Keystore
         run: |
-          if [ -f app/build/outputs/apk/release/app-release-unsigned.apk ]; then RAW_APK="app/build/outputs/apk/release/app-release-unsigned.apk"; else RAW_APK="app/build/outputs/apk/release/app-release.apk"; fi
+          if [ -f app/build/outputs/apk/release/app-release-unsigned.apk ]; then
+            RAW_APK="app/build/outputs/apk/release/app-release-unsigned.apk"
+          elif [ -f app/build/outputs/apk/release/app-release.apk ]; then
+            RAW_APK="app/build/outputs/apk/release/app-release.apk"
+          else
+            echo "APK file not found!"
+            ls -la app/build/outputs/apk/release/
+            exit 1
+          fi
+
           BUILD_TOOLS_DIR=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -n 1)
+
           "$BUILD_TOOLS_DIR/zipalign" -p -f -v 4 "$RAW_APK" aligned.apk
-          keytool -genkey -v -keystore fixed-release.keystore -alias elhana -keyalg RSA -keysize 2048 -validity 20000 -startdate "2025/01/01 00:00:00" -storepass elhana2025 -keypass elhana2025 -dname "CN=ElHana IPTV, OU=Dev, O=ElHana, L=Cairo, S=Cairo, C=EG"
-          "$BUILD_TOOLS_DIR/apksigner" sign --ks fixed-release.keystore --ks-key-alias elhana --ks-pass pass:elhana2025 --key-pass pass:elhana2025 --out "$GITHUB_WORKSPACE/El-Hana-IPTV.apk" aligned.apk
+
+          keytool -genkey -v -keystore fixed-release.keystore -alias elhana \
+            -keyalg RSA -keysize 2048 -validity 20000 \
+            -startdate "2025/01/01 00:00:00" \
+            -storepass elhana2025 -keypass elhana2025 \
+            -dname "CN=ElHana IPTV, OU=Dev, O=ElHana, L=Cairo, S=Cairo, C=EG"
+
+          "$BUILD_TOOLS_DIR/apksigner" sign --ks fixed-release.keystore \
+            --ks-key-alias elhana \
+            --ks-pass pass:elhana2025 \
+            --key-pass pass:elhana2025 \
+            --out "$GITHUB_WORKSPACE/El-Hana-IPTV.apk" aligned.apk
+
+          "$BUILD_TOOLS_DIR/apksigner" verify --verbose "$GITHUB_WORKSPACE/El-Hana-IPTV.apk"
 
       - uses: actions/upload-artifact@v4
         with:
@@ -243,7 +417,7 @@ jobs:
       - name: Publish a download link (GitHub Release)
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v2.4.${{ github.run_number }}
-          name: El Hana IPTV v2.4.${{ github.run_number }}
+          tag_name: v2.3.${{ github.run_number }}
+          name: El Hana IPTV v2.3.${{ github.run_number }}
           make_latest: true
           files: El-Hana-IPTV.apk
