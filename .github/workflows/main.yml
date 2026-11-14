@@ -19,26 +19,34 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - uses: android-actions/setup-android@v4
+      - uses: android-actions/setup-android@v3
 
-      # خطوة أساسية: الموافقة التلقائية على تراخيص Android SDK لمنع توقف البناء
+      # قبول جميع تراخيص Android SDK و NDK بشكل صحيح
       - name: Accept Android SDK licenses
-        run: |
-          yes | sdkmanager --licenses || true
+        run: yes | sdkmanager --licenses > /dev/null || true
 
-      # توليد ملف gradlew طالما أنه غير موجود في المستودع
-      - name: Generate Gradle Wrapper
-        run: gradle wrapper --gradle-version 8.7
+      # إعداد Gradle تلقائياً (يغني عن توليد gradlew يدوياً ويمنع تعارض الإصدارات)
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
 
-      # منح صلاحيات التنفيذ لملف gradlew الجديد
-      - name: Make gradlew executable
-        run: chmod +x gradlew
+      # بناء النسخة (استخدمنا gradle مباشرة لضمان العمل حتى بدون gradlew)
+      - name: Build release APK
+        run: gradle :app:assembleRelease --no-daemon --stacktrace
 
-      - name: Build signed release APK
-        run: ./gradlew :app:assembleRelease --no-daemon --stacktrace --info
-
+      # نسخ ملف الـ APK سواء كان موقع (signed) أو غير موقع (unsigned)
       - name: Name the APK
-        run: cp app/build/outputs/apk/release/app-release.apk El-Hana-IPTV.apk
+        run: |
+          if [ -f app/build/outputs/apk/release/app-release.apk ]; then
+            cp app/build/outputs/apk/release/app-release.apk El-Hana-IPTV.apk
+          elif [ -f app/build/outputs/apk/release/app-release-unsigned.apk ]; then
+            cp app/build/outputs/apk/release/app-release-unsigned.apk El-Hana-IPTV.apk
+          else
+            echo "APK file not found!"
+            ls -la app/build/outputs/apk/release/
+            exit 1
+          fi
 
       - uses: actions/upload-artifact@v4
         with:
