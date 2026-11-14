@@ -22,7 +22,7 @@ jobs:
       - name: Accept Android SDK licenses
         run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null || true
 
-      - name: Setup Valid Android Project with Launcher & Icon
+      - name: Build Full Android App from IPTV Web Files
         run: |
           if [ -e "app" ] && [ ! -d "app" ]; then
             mv app app_file_backup
@@ -30,25 +30,39 @@ jobs:
           rm -f settings.gradle.kts build.gradle.kts app/build.gradle.kts
 
           mkdir -p app/src/main/java/com/elhana/iptv
+          mkdir -p app/src/main/assets
           mkdir -p app/src/main/res/values
           mkdir -p app/src/main/res/mipmap-xxxhdpi
 
-          # 1. نسخ صورة الأيقونة المرفوعة في المستودع إلى مجلد الأيقونات
-          ICON_FILE=$(find . -maxdepth 2 \( -iname "ic_launcher.*" -o -iname "*.png" -o -iname "*.jpg" -o -iname "*.jpeg" \) | head -n 1)
+          # 1. نسخ ملفات واجهة IPTV إلى مجلد assets داخل التطبيق
+          for f in index.html style.css app.js add.html version.json qr.js ota.js; do
+            if [ -f "$f" ]; then
+              cp "$f" "app/src/main/assets/$f"
+              echo "✅ تم ربط الملف: $f"
+            fi
+          done
+          if [ -d "fonts" ]; then
+            cp -r fonts app/src/main/assets/
+          fi
+
+          # إذا لم تكن qr.js أو ota.js مرفوعة، أنشئ بدائل آمنة لضمان عمل app.js بسلاسة
+          if [ ! -f "app/src/main/assets/ota.js" ]; then
+            printf '%s\n' \
+              'var s=document.createElement("script");s.src="app.js";document.body.appendChild(s);' > app/src/main/assets/ota.js
+          fi
+          if [ ! -f "app/src/main/assets/qr.js" ]; then
+            printf '%s\n' 'window.EH_QR=null;' > app/src/main/assets/qr.js
+          fi
+
+          # 2. نسخ صورة الأيقونة كأيقونة للتطبيق + شعار داخل التطبيق (logo.png)
+          ICON_FILE=$(find . -maxdepth 2 \( -iname "ic_launcher.*" -o -iname "logo.*" -o -iname "*.png" -o -iname "*.jpg" -o -iname "*.jpeg" \) | head -n 1)
           if [ -n "$ICON_FILE" ]; then
             cp "$ICON_FILE" app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
-            echo "✅ تم تعيين الأيقونة من الملف: $ICON_FILE"
+            cp "$ICON_FILE" app/src/main/assets/logo.png
+            echo "✅ تم تعيين الأيقونة والشعار من: $ICON_FILE"
           fi
 
-          # 2. نقل الملفات المبعثرة في الجذر إلى أماكنها الصحيحة إن وجدت
-          if [ -f "build.gradle" ] && grep -q "com.android.application" build.gradle; then
-            mv build.gradle app/build.gradle
-          fi
-          if [ -d "src" ]; then
-            cp -rn src/* app/src/ 2>/dev/null || true
-          fi
-
-          # 3. إنشاء settings.gradle و build.gradle و gradle.properties
+          # 3. إنشاء ملفات إعداد Gradle
           printf '%s\n' \
             'pluginManagement {' \
             '    repositories {' \
@@ -70,7 +84,6 @@ jobs:
           printf '%s\n' \
             'plugins {' \
             '    id "com.android.application" version "8.5.2" apply false' \
-            '    id "org.jetbrains.kotlin.android" version "1.9.24" apply false' \
             '}' > build.gradle
 
           printf '%s\n' \
@@ -78,94 +91,144 @@ jobs:
             'android.enableJetifier=true' \
             'org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8' > gradle.properties
 
-          if [ ! -f "app/build.gradle" ] || ! grep -q "com.android.application" app/build.gradle; then
-            printf '%s\n' \
-              'plugins {' \
-              '    id "com.android.application"' \
-              '}' \
-              'android {' \
-              '    namespace "com.elhana.iptv"' \
-              '    compileSdk 34' \
-              '    defaultConfig {' \
-              '        applicationId "com.elhana.iptv"' \
-              '        minSdk 21' \
-              '        targetSdk 34' \
-              '        versionCode 1' \
-              '        versionName "1.0"' \
-              '    }' \
-              '    buildTypes {' \
-              '        release {' \
-              '            minifyEnabled false' \
-              '            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"' \
-              '        }' \
-              '    }' \
-              '    compileOptions {' \
-              '        sourceCompatibility JavaVersion.VERSION_17' \
-              '        targetCompatibility JavaVersion.VERSION_17' \
-              '    }' \
-              '}' \
-              'dependencies {' \
-              '    implementation "androidx.appcompat:appcompat:1.6.1"' \
-              '    implementation "com.google.android.material:material:1.11.0"' \
-              '}' > app/build.gradle
-          else
-            sed -i -E "s/id ['\"]com\.android\.application['\"] version ['\"][^'\"]+['\"]/id 'com.android.application'/g" app/build.gradle
-            sed -i -E "s/id ['\"]org\.jetbrains\.kotlin\.android['\"] version ['\"][^'\"]+['\"]/id 'org.jetbrains.kotlin.android'/g" app/build.gradle
-          fi
+          printf '%s\n' \
+            'plugins {' \
+            '    id "com.android.application"' \
+            '}' \
+            'android {' \
+            '    namespace "com.elhana.iptv"' \
+            '    compileSdk 34' \
+            '    defaultConfig {' \
+            '        applicationId "com.elhana.iptv"' \
+            '        minSdk 21' \
+            '        targetSdk 34' \
+            '        versionCode 1' \
+            '        versionName "2.2.0"' \
+            '    }' \
+            '    buildTypes {' \
+            '        release {' \
+            '            minifyEnabled false' \
+            '            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"' \
+            '        }' \
+            '    }' \
+            '    compileOptions {' \
+            '        sourceCompatibility JavaVersion.VERSION_17' \
+            '        targetCompatibility JavaVersion.VERSION_17' \
+            '    }' \
+            '}' \
+            'dependencies {' \
+            '    implementation "androidx.appcompat:appcompat:1.6.1"' \
+            '}' > app/build.gradle
 
-          # 4. إنشاء شاشة رئيسية (MainActivity) إذا لم يكن هناك كود Java/Kotlin مرفوع
-          EXISTING_JAVA=$(find app/src -name "*.java" -o -name "*.kt" | head -n 1)
-          if [ -z "$EXISTING_JAVA" ]; then
-            printf '%s\n' \
-              'package com.elhana.iptv;' \
-              'import android.os.Bundle;' \
-              'import android.webkit.WebView;' \
-              'import android.webkit.WebViewClient;' \
-              'import androidx.appcompat.app.AppCompatActivity;' \
-              'public class MainActivity extends AppCompatActivity {' \
-              '    @Override' \
-              '    protected void onCreate(Bundle savedInstanceState) {' \
-              '        super.onCreate(savedInstanceState);' \
-              '        WebView webView = new WebView(this);' \
-              '        webView.getSettings().setJavaScriptEnabled(true);' \
-              '        webView.setWebViewClient(new WebViewClient());' \
-              '        setContentView(webView);' \
-              '    }' \
-              '}' > app/src/main/java/com/elhana/iptv/MainActivity.java
-          fi
+          # 4. كتابة كود MainActivity المتكامل (WebView + دعم البث + اختيار الصور + زر الرجوع)
+          printf '%s\n' \
+            'package com.elhana.iptv;' \
+            'import android.app.Activity;' \
+            'import android.content.Intent;' \
+            'import android.net.Uri;' \
+            'import android.os.Bundle;' \
+            'import android.view.View;' \
+            'import android.view.WindowManager;' \
+            'import android.webkit.JavascriptInterface;' \
+            'import android.webkit.ValueCallback;' \
+            'import android.webkit.WebChromeClient;' \
+            'import android.webkit.WebSettings;' \
+            'import android.webkit.WebView;' \
+            'import android.webkit.WebViewClient;' \
+            'import androidx.appcompat.app.AppCompatActivity;' \
+            'public class MainActivity extends AppCompatActivity {' \
+            '    private WebView webView;' \
+            '    private ValueCallback<Uri[]> filePathCallback;' \
+            '    private static final int FILE_CHOOSER_REQ = 1001;' \
+            '    public class AndroidBridge {' \
+            '        @JavascriptInterface' \
+            '        public boolean isAndroid() { return true; }' \
+            '    }' \
+            '    @Override' \
+            '    protected void onCreate(Bundle savedInstanceState) {' \
+            '        super.onCreate(savedInstanceState);' \
+            '        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);' \
+            '        getWindow().getDecorView().setSystemUiVisibility(' \
+            '            View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY' \
+            '        );' \
+            '        webView = new WebView(this);' \
+            '        WebSettings ws = webView.getSettings();' \
+            '        ws.setJavaScriptEnabled(true);' \
+            '        ws.setDomStorageEnabled(true);' \
+            '        ws.setDatabaseEnabled(true);' \
+            '        ws.setAllowFileAccess(true);' \
+            '        ws.setAllowContentAccess(true);' \
+            '        ws.setAllowFileAccessFromFileURLs(true);' \
+            '        ws.setAllowUniversalAccessFromFileURLs(true);' \
+            '        ws.setMediaPlaybackRequiresUserGesture(false);' \
+            '        ws.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);' \
+            '        ws.setUseWideViewPort(true);' \
+            '        ws.setLoadWithOverviewMode(true);' \
+            '        webView.setInitialScale(1);' \
+            '        webView.addJavascriptInterface(new AndroidBridge(), "AndroidApp");' \
+            '        webView.setWebViewClient(new WebViewClient());' \
+            '        webView.setWebChromeClient(new WebChromeClient() {' \
+            '            @Override' \
+            '            public boolean onShowFileChooser(WebView wv, ValueCallback<Uri[]> cb, FileChooserParams params) {' \
+            '                if (filePathCallback != null) filePathCallback.onReceiveValue(null);' \
+            '                filePathCallback = cb;' \
+            '                Intent intent = new Intent(Intent.ACTION_GET_CONTENT);' \
+            '                intent.addCategory(Intent.CATEGORY_OPENABLE);' \
+            '                intent.setType("image/*");' \
+            '                startActivityForResult(Intent.createChooser(intent, "Choose Image"), FILE_CHOOSER_REQ);' \
+            '                return true;' \
+            '            }' \
+            '        });' \
+            '        setContentView(webView);' \
+            '        webView.loadUrl("file:///android_asset/index.html");' \
+            '    }' \
+            '    @Override' \
+            '    protected void onActivityResult(int req, int res, Intent data) {' \
+            '        super.onActivityResult(req, res, data);' \
+            '        if (req == FILE_CHOOSER_REQ && filePathCallback != null) {' \
+            '            Uri[] results = (res == Activity.RESULT_OK && data != null && data.getData() != null) ? new Uri[]{data.getData()} : null;' \
+            '            filePathCallback.onReceiveValue(results);' \
+            '            filePathCallback = null;' \
+            '        }' \
+            '    }' \
+            '    @Override' \
+            '    public void onBackPressed() {' \
+            '        webView.evaluateJavascript("if(typeof goBack===\"function\"){goBack();}", null);' \
+            '    }' \
+            '}' > app/src/main/java/com/elhana/iptv/MainActivity.java
 
-          # 5. تحديث AndroidManifest.xml لإضافة LAUNCHER وإظهار الأيقونة وزر Open
+          # 5. إنشاء AndroidManifest.xml مع السماح بروابط HTTP المباشرة وأيقونة LAUNCHER
           ICON_ATTR=""
           if [ -f "app/src/main/res/mipmap-xxxhdpi/ic_launcher.png" ]; then
             ICON_ATTR='android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher"'
           fi
 
-          if [ -f "AndroidManifest.xml" ]; then
-            mv AndroidManifest.xml app/src/main/AndroidManifest.xml
-          fi
-
-          if [ ! -f "app/src/main/AndroidManifest.xml" ] || ! grep -q "android.intent.category.LAUNCHER" app/src/main/AndroidManifest.xml; then
-            printf '%s\n' \
-              '<?xml version="1.0" encoding="utf-8"?>' \
-              '<manifest xmlns:android="http://schemas.android.com/apk/res/android">' \
-              '    <uses-permission android:name="android.permission.INTERNET" />' \
-              '    <application' \
-              '        android:allowBackup="true"' \
-              "        $ICON_ATTR" \
-              '        android:label="El Hana IPTV"' \
-              '        android:supportsRtl="true"' \
-              '        android:theme="@style/Theme.AppCompat.NoActionBar">' \
-              '        <activity' \
-              '            android:name=".MainActivity"' \
-              '            android:exported="true">' \
-              '            <intent-filter>' \
-              '                <action android:name="android.intent.action.MAIN" />' \
-              '                <category android:name="android.intent.category.LAUNCHER" />' \
-              '            </intent-filter>' \
-              '        </activity>' \
-              '    </application>' \
-              '</manifest>' > app/src/main/AndroidManifest.xml
-          fi
+          printf '%s\n' \
+            '<?xml version="1.0" encoding="utf-8"?>' \
+            '<manifest xmlns:android="http://schemas.android.com/apk/res/android">' \
+            '    <uses-permission android:name="android.permission.INTERNET" />' \
+            '    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />' \
+            '    <application' \
+            '        android:allowBackup="true"' \
+            '        android:usesCleartextTraffic="true"' \
+            '        android:hardwareAccelerated="true"' \
+            "        $ICON_ATTR" \
+            '        android:label="El Hana IPTV"' \
+            '        android:supportsRtl="true"' \
+            '        android:theme="@style/Theme.AppCompat.NoActionBar">' \
+            '        <activity' \
+            '            android:name=".MainActivity"' \
+            '            android:configChanges="orientation|screenSize|keyboardHidden"' \
+            '            android:screenOrientation="sensorLandscape"' \
+            '            android:exported="true">' \
+            '            <intent-filter>' \
+            '                <action android:name="android.intent.action.MAIN" />' \
+            '                <category android:name="android.intent.category.LAUNCHER" />' \
+            '                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />' \
+            '            </intent-filter>' \
+            '        </activity>' \
+            '    </application>' \
+            '</manifest>' > app/src/main/AndroidManifest.xml
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -212,7 +275,7 @@ jobs:
       - name: Publish a download link (GitHub Release)
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.${{ github.run_number }}
-          name: El Hana IPTV v1.0.${{ github.run_number }}
+          tag_name: v2.2.${{ github.run_number }}
+          name: El Hana IPTV v2.2.${{ github.run_number }}
           make_latest: true
           files: El-Hana-IPTV.apk
