@@ -49,12 +49,13 @@ jobs:
             cp -r fonts app/src/main/assets/
           fi
 
-          # 2. إصلاح زر الرئيسية (Home) + توجيه التحديث التلقائي (OTA) لمستودع GitHub Pages الحالي
+          # 2. إصلاح زر الرئيسية + توجيه OTA + ربط زر الخروج بنظام الأندرويد في app.js
           if [ -f "app/src/main/assets/app.js" ]; then
             sed -i "s/else if (c.contains('tab')) setType/else if (t.id === 'btnHome') showHome(); else if (c.contains('tab')) setType/g" app/src/main/assets/app.js
             sed -i "s|var _U1 = .*;|var _U1 = 'https://alifathy2.github.io/El-Hana-IPTV.apk';|g" app/src/main/assets/app.js
             sed -i "s|var _U2 = .*;|var _U2 = 'https://alifathy2.github.io/elhana';|g" app/src/main/assets/app.js
-            echo "✅ تم إصلاح زر الرئيسية وتوجيه التحديث عن بُعد (OTA) في app.js"
+            sed -i "s/function exitApp() {/function exitApp() { if (window.AndroidApp \&\& AndroidApp.exitApp) { AndroidApp.exitApp(); return; }/g" app/src/main/assets/app.js
+            echo "✅ تم إصلاح زر الرئيسية وزر الخروج وتوجيه OTA في app.js"
           fi
 
           # تحسين استجابة اللمس على الهواتف في style.css
@@ -93,7 +94,6 @@ jobs:
               '  def.src = "app.js";' \
               '  document.body.appendChild(def);' \
               '})();' > app/src/main/assets/ota.js
-            echo "✅ تم دمج محرك التحديث التلقائي ota.js"
           fi
 
           if [ ! -f "app/src/main/assets/qr.js" ]; then
@@ -155,8 +155,8 @@ jobs:
             '        applicationId "com.elhana.iptv"' \
             '        minSdk 21' \
             '        targetSdk 34' \
-            '        versionCode 3' \
-            '        versionName "2.2.2"' \
+            '        versionCode 4' \
+            '        versionName "2.2.3"' \
             '    }' \
             '    buildTypes {' \
             '        release {' \
@@ -173,7 +173,7 @@ jobs:
             '    implementation "androidx.appcompat:appcompat:1.6.1"' \
             '}' > app/build.gradle
 
-          # 6. كتابة كود MainActivity المتكامل
+          # 6. كتابة كود MainActivity المتكامل مع دالة إغلاق التطبيق exitApp()
           printf '%s\n' \
             'package com.elhana.iptv;' \
             'import android.app.Activity;' \
@@ -196,6 +196,16 @@ jobs:
             '    public class AndroidBridge {' \
             '        @JavascriptInterface' \
             '        public boolean isAndroid() { return true; }' \
+            '        @JavascriptInterface' \
+            '        public void exitApp() {' \
+            '            runOnUiThread(new Runnable() {' \
+            '                @Override' \
+            '                public void run() {' \
+            '                    finishAffinity();' \
+            '                    System.exit(0);' \
+            '                }' \
+            '            });' \
+            '        }' \
             '    }' \
             '    @Override' \
             '    protected void onCreate(Bundle savedInstanceState) {' \
