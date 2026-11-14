@@ -5,6 +5,7 @@
 <title>El Hana IPTV</title>
 <meta name="viewport" content="width=1920">
 <link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.15/dist/hls.min.js"></script>
 </head>
 <body>
 
@@ -154,7 +155,7 @@
 
 <!-- Player -->
 <section id="player" class="hidden">
-  <video id="video" autoplay></video>
+  <video id="video" autoplay playsinline></video>
   <div id="osd" class="osd hidden">
     <div id="osdTitle"></div>
     <div class="vodonly"><div id="osdBar"><div id="osdFill"></div></div></div>
@@ -169,6 +170,7 @@
       <button class="f pb vodonly" data-act="fwd" data-i18n-title="fwd">
         <svg viewBox="0 0 24 24" width="40" height="40" fill="#fff"><path d="M13 6v12l8.5-6zM3 6v12l8.5-6z"/></svg><small>30</small></button>
       <span class="sep"></span>
+      <button class="f pb txt" data-act="extplayer" data-i18n="btnExtPlayer"></button>
       <button class="f pb txt" data-act="quality" data-i18n="btnQuality"></button>
       <button class="f pb txt" data-act="audio" data-i18n="btnAudio"></button>
     </div>
@@ -192,7 +194,6 @@
   </div>
 </div>
 
-
 <!-- Privacy Policy & Terms Acceptance Modal (First Run) -->
 <div id="termsdlg" class="modal hidden">
   <div class="modal-box terms-box">
@@ -204,7 +205,6 @@
     </div>
   </div>
 </div>
-
 
 <!-- Custom Background Modal (Phone Upload + Local File + URL) -->
 <div id="bgdlg" class="modal hidden">
