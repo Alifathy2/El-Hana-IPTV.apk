@@ -55,7 +55,6 @@ jobs:
             sed -i "s|var _U2 = .*;|var _U2 = 'https://alifathy2.github.io/elhana';|g" app/src/main/assets/app.js
             sed -i "s/function exitApp() {/function exitApp() { if (window.AndroidApp \&\& AndroidApp.exitApp) { AndroidApp.exitApp(); return; }/g" app/src/main/assets/app.js
 
-            # إضافة دعم لمس شاشة المشغل لإظهار أزرار التحكم + معالجة صيغ الأفلام والمسلسلات (MKV -> MP4 / External Player)
             cat << 'EOF' >> app/src/main/assets/app.js
 
           /* --- تحسينات اللمس وتشغيل الأفلام والمسلسلات للأندرويد --- */
@@ -151,7 +150,7 @@ jobs:
           ' "$ICON_FILE"
           fi
 
-          # 4. إعداد Gradle
+          # 4. إعداد Gradle (تمت إزالة المكتبة المكررة لحل checkReleaseDuplicateClasses)
           printf '%s\n' \
             'pluginManagement {' \
             '    repositories {' \
@@ -191,8 +190,8 @@ jobs:
             '        applicationId "com.elhana.iptv"' \
             '        minSdk 21' \
             '        targetSdk 34' \
-            '        versionCode 5' \
-            '        versionName "2.2.4"' \
+            '        versionCode 6' \
+            '        versionName "2.2.5"' \
             '    }' \
             '    buildTypes {' \
             '        release {' \
@@ -207,7 +206,6 @@ jobs:
             '}' \
             'dependencies {' \
             '    implementation "androidx.appcompat:appcompat:1.6.1"' \
-            '    implementation "androidx.activity:activity:1.8.2"' \
             '}' > app/build.gradle
 
           # 5. كود MainActivity مع دعم زر الرجوع الحديث OnBackPressedCallback + فتح الصيغ الصعبة خارجياً
