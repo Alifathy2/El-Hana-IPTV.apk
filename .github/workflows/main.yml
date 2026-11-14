@@ -22,10 +22,8 @@ jobs:
       - name: Accept Android SDK licenses
         run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null || true
 
-      # تهيئة المشروع باستخدام printf النظيف بدون أي أخطاء مسافات YAML
       - name: Setup Valid Android Project
         run: |
-          # 1. إزالة أي تعارض في اسم app أو ملفات .kts متضاربة
           if [ -e "app" ] && [ ! -d "app" ]; then
             mv app app_file_backup
           fi
@@ -34,7 +32,6 @@ jobs:
           mkdir -p app/src/main/java/com/elhana/iptv
           mkdir -p app/src/main/res/values
 
-          # 2. نقل الملفات المبعثرة في الجذر إلى أماكنها الصحيحة
           if [ -f "build.gradle" ] && grep -q "com.android.application" build.gradle; then
             mv build.gradle app/build.gradle
           fi
@@ -45,7 +42,6 @@ jobs:
             cp -rn src/* app/src/ 2>/dev/null || true
           fi
 
-          # 3. كتابة settings.gradle نظيف
           printf '%s\n' \
             'pluginManagement {' \
             '    repositories {' \
@@ -64,14 +60,18 @@ jobs:
             'rootProject.name = "El-Hana-IPTV"' \
             'include ":app"' > settings.gradle
 
-          # 4. كتابة build.gradle الرئيسي نظيف
           printf '%s\n' \
             'plugins {' \
             '    id "com.android.application" version "8.5.2" apply false' \
             '    id "org.jetbrains.kotlin.android" version "1.9.24" apply false' \
             '}' > build.gradle
 
-          # 5. التحقق من app/build.gradle أو إنشاؤه نظيفاً
+          # تفعيل AndroidX و Jetifier لمنع فشل checkReleaseAarMetadata
+          printf '%s\n' \
+            'android.useAndroidX=true' \
+            'android.enableJetifier=true' \
+            'org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8' > gradle.properties
+
           if [ ! -f "app/build.gradle" ] || ! grep -q "com.android.application" app/build.gradle; then
             printf '%s\n' \
               'plugins {' \
@@ -107,7 +107,6 @@ jobs:
             sed -i -E "s/id ['\"]org\.jetbrains\.kotlin\.android['\"] version ['\"][^'\"]+['\"]/id 'org.jetbrains.kotlin.android'/g" app/build.gradle
           fi
 
-          # 6. ضمان وجود AndroidManifest.xml نظيف
           if [ ! -f "app/src/main/AndroidManifest.xml" ]; then
             printf '%s\n' \
               '<?xml version="1.0" encoding="utf-8"?>' \
@@ -121,11 +120,6 @@ jobs:
               '    </application>' \
               '</manifest>' > app/src/main/AndroidManifest.xml
           fi
-
-          echo "=== تم إنشاء الملفات بنجاح ==="
-          cat settings.gradle
-          echo "---"
-          cat app/build.gradle
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
