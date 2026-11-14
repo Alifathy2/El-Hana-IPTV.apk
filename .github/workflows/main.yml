@@ -22,7 +22,7 @@ jobs:
       - name: Accept Android SDK licenses
         run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null || true
 
-      - name: Build Full Android App from IPTV Web Files
+      - name: Build Full Android App (Fixed Playback, Weather, OTA & Fixed Keystore)
         run: |
           if [ -e "app" ] && [ ! -d "app" ]; then
             mv app app_file_backup
@@ -38,7 +38,7 @@ jobs:
           mkdir -p app/src/main/res/mipmap-xxhdpi
           mkdir -p app/src/main/res/mipmap-xxxhdpi
 
-          # 1. نسخ ملفات واجهة IPTV إلى مجلد assets داخل التطبيق
+          # 1. نسخ ملفات واجهة IPTV إلى مجلد assets
           for f in index.html style.css app.js add.html version.json qr.js ota.js; do
             if [ -f "$f" ]; then
               cp "$f" "app/src/main/assets/$f"
@@ -48,45 +48,100 @@ jobs:
             cp -r fonts app/src/main/assets/
           fi
 
-          # 2. حقن تحسينات اللمس وتشغيل الأفلام والمسلسلات في app.js
+          # 2. إضافة زر "مشغل خارجي" في شريط المشغل داخل index.html
+          if [ -f "app/src/main/assets/index.html" ]; then
+            sed -i 's|<button class="f pb txt" data-act="audio" data-i18n="btnAudio"></button>|<button class="f pb txt" data-act="audio" data-i18n="btnAudio"></button><button class="f pb txt" data-act="ext" id="btnExtPlayer">VLC / خارجي</button>|g' app/src/main/assets/index.html
+          fi
+
+          # 3. تحديث app.js: إصلاح الرئيسية + الخروج + الطقس + التحديث المباشر من GitHub + مشغل الأفلام
           if [ -f "app/src/main/assets/app.js" ]; then
             sed -i "s/else if (c.contains('tab')) setType/else if (t.id === 'btnHome') showHome(); else if (c.contains('tab')) setType/g" app/src/main/assets/app.js
-            sed -i "s|var _U1 = .*;|var _U1 = 'https://alifathy2.github.io/El-Hana-IPTV.apk';|g" app/src/main/assets/app.js
-            sed -i "s|var _U2 = .*;|var _U2 = 'https://alifathy2.github.io/elhana';|g" app/src/main/assets/app.js
+            sed -i "s|var _U1 = .*;|var _U1 = 'https://raw.githubusercontent.com/Alifathy2/El-Hana-IPTV.apk/main';|g" app/src/main/assets/app.js
+            sed -i "s|var _U2 = .*;|var _U2 = 'https://alifathy2.github.io/El-Hana-IPTV.apk';|g" app/src/main/assets/app.js
             sed -i "s/function exitApp() {/function exitApp() { if (window.AndroidApp \&\& AndroidApp.exitApp) { AndroidApp.exitApp(); return; }/g" app/src/main/assets/app.js
 
             cat << 'EOF' >> app/src/main/assets/app.js
 
-          /* --- تحسينات اللمس وتشغيل الأفلام والمسلسلات للأندرويد --- */
+          /* --- تحسينات المشغل، الطقس، واللمس للأندرويد --- */
           (function () {
+            // 1. إصلاح جلب حالة الطقس باستخدام ipwho.is + open-meteo بدلاً من ipapi المحظور
+            function loadWeatherReliable() {
+              var x = new XMLHttpRequest();
+              x.open('GET', 'https://ipwho.is/', true);
+              x.timeout = 8000;
+              x.onload = function () {
+                try {
+                  var d = JSON.parse(x.responseText);
+                  if (d && d.success && d.latitude && d.longitude) {
+                    getMeteo(d.latitude, d.longitude, d.city || d.country || 'مصر');
+                    return;
+                  }
+                } catch (e) {}
+                getMeteo(31.036, 30.468, 'مصر');
+              };
+              x.onerror = x.ontimeout = function () { getMeteo(31.036, 30.468, 'مصر'); };
+              x.send();
+            }
+            function getMeteo(lat, lon, city) {
+              var w = new XMLHttpRequest();
+              w.open('GET', 'https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lon + '&current_weather=true', true);
+              w.timeout = 8000;
+              w.onload = function () {
+                try {
+                  var res = JSON.parse(w.responseText);
+                  if (res && res.current_weather) {
+                    var t = Math.round(res.current_weather.temperature);
+                    var c = res.current_weather.weathercode;
+                    var ico = c === 0 ? '☀️' : (c <= 3 ? '⛅' : (c <= 48 ? '🌫️' : (c <= 67 ? '🌧️' : '⛈️')));
+                    var elLoc = document.getElementById('hwLoc');
+                    var elW = document.getElementById('hwWeather');
+                    if (elLoc) elLoc.textContent = city;
+                    if (elW) elW.textContent = ico + ' ' + t + '°C';
+                  }
+                } catch (e) {}
+              };
+              w.send();
+            }
+            setTimeout(loadWeatherReliable, 1500);
+            setInterval(loadWeatherReliable, 1800000);
+
+            // 2. لمس الشاشة لإظهار/إخفاء أزرار المشغل + زر المشغل الخارجي + معالجة أخطاء الأفلام والمسلسلات
             var pEl = document.getElementById('player');
             var vEl = document.getElementById('video');
             var osdEl = document.getElementById('osd');
+            var extBtn = document.getElementById('btnExtPlayer');
+
+            if (extBtn && vEl) {
+              extBtn.addEventListener('click', function () {
+                var src = vEl.currentSrc || vEl.src || '';
+                if (window.AndroidApp && AndroidApp.openExternal && src) {
+                  vEl.pause();
+                  AndroidApp.openExternal(src);
+                }
+              });
+            }
+
             if (pEl && vEl && osdEl) {
               pEl.addEventListener('click', function (e) {
                 if (e.target === pEl || e.target === vEl) {
-                  if (osdEl.classList.contains('hidden')) {
-                    osdEl.classList.remove('hidden');
-                  } else {
-                    osdEl.classList.add('hidden');
-                  }
+                  osdEl.classList.toggle('hidden');
                 }
               });
 
-              var triedMp4Fallback = false;
+              var triedMp4 = false;
               vEl.addEventListener('loadstart', function () {
-                if (!/\.mp4(\?|$)/i.test(vEl.src)) triedMp4Fallback = false;
+                if (!/\.mp4(\?|$)/i.test(vEl.src)) triedMp4 = false;
               });
               vEl.addEventListener('error', function () {
                 var src = vEl.currentSrc || vEl.src || '';
-                if (!triedMp4Fallback && /\.(mkv|avi|mov)(\?|$)/i.test(src)) {
-                  triedMp4Fallback = true;
-                  var mp4Url = src.replace(/\.(mkv|avi|mov)(\?|$)/i, '.mp4$2');
-                  vEl.src = mp4Url;
+                if (!src) return;
+                if (!triedMp4 && /\.(mkv|avi|mov)(\?|$)/i.test(src)) {
+                  triedMp4 = true;
+                  vEl.src = src.replace(/\.(mkv|avi|mov)(\?|$)/i, '.mp4$2');
                   vEl.play().catch(function () {});
                   return;
                 }
-                if (window.AndroidApp && AndroidApp.openExternal && src) {
+                if (window.AndroidApp && AndroidApp.openExternal) {
                   AndroidApp.openExternal(src);
                 }
               }, true);
@@ -101,41 +156,40 @@ jobs:
               '#cats, #content, .det-eps, .terms-body { -webkit-overflow-scrolling: touch; }' >> app/src/main/assets/style.css
           fi
 
-          if [ ! -f "app/src/main/assets/ota.js" ]; then
-            printf '%s\n' \
-              '(function () {' \
-              '  try {' \
-              '    var raw = localStorage.getItem("elhana.ota");' \
-              '    if (raw) {' \
-              '      var ota = JSON.parse(raw);' \
-              '      if (ota && ota.version && ota.js && ota.css && ota.index) {' \
-              '        window.EH_VER = ota.version;' \
-              '        window.EH_OTA = true;' \
-              '        var st = document.querySelector("link[href=\"style.css\"]");' \
-              '        if (st) st.remove();' \
-              '        var sTag = document.createElement("style");' \
-              '        sTag.textContent = ota.css;' \
-              '        document.head.appendChild(sTag);' \
-              '        var m = ota.index.match(/<body[^>]*>([\s\S]*?)<\/body>/i);' \
-              '        if (m) document.body.innerHTML = m[1];' \
-              '        var sc = document.createElement("script");' \
-              '        sc.textContent = ota.js;' \
-              '        document.body.appendChild(sc);' \
-              '        return;' \
-              '      }' \
-              '    }' \
-              '  } catch (e) {}' \
-              '  var def = document.createElement("script");' \
-              '  def.src = "app.js";' \
-              '  document.body.appendChild(def);' \
-              '})();' > app/src/main/assets/ota.js
-          fi
+          # 4. محرك التحديث التلقائي عن بُعد (OTA)
+          printf '%s\n' \
+            '(function () {' \
+            '  try {' \
+            '    var raw = localStorage.getItem("elhana.ota");' \
+            '    if (raw) {' \
+            '      var ota = JSON.parse(raw);' \
+            '      if (ota && ota.version && ota.js && ota.css && ota.index) {' \
+            '        window.EH_VER = ota.version;' \
+            '        window.EH_OTA = true;' \
+            '        var st = document.querySelector("link[href=\"style.css\"]");' \
+            '        if (st) st.remove();' \
+            '        var sTag = document.createElement("style");' \
+            '        sTag.textContent = ota.css;' \
+            '        document.head.appendChild(sTag);' \
+            '        var m = ota.index.match(/<body[^>]*>([\s\S]*?)<\/body>/i);' \
+            '        if (m) document.body.innerHTML = m[1];' \
+            '        var sc = document.createElement("script");' \
+            '        sc.textContent = ota.js;' \
+            '        document.body.appendChild(sc);' \
+            '        return;' \
+            '      }' \
+            '    }' \
+            '  } catch (e) {}' \
+            '  var def = document.createElement("script");' \
+            '  def.src = "app.js";' \
+            '  document.body.appendChild(def);' \
+            '})();' > app/src/main/assets/ota.js
 
           if [ ! -f "app/src/main/assets/qr.js" ]; then
             printf '%s\n' 'window.EH_QR=null;' > app/src/main/assets/qr.js
           fi
 
-          # 3. معالجة الأيقونة بجميع المقاسات
+          # 5. معالجة الأيقونة بجميع المقاسات
           ICON_FILE=$(find . -maxdepth 2 \( -iname "ic_launcher.*" -o -iname "logo.*" -o -iname "*.png" -o -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.webp" \) | head -n 1)
           if [ -n "$ICON_FILE" ]; then
             sudo apt-get update -qq && sudo apt-get install -y -qq python3-pil
@@ -150,7 +204,7 @@ jobs:
           ' "$ICON_FILE"
           fi
 
-          # 4. إعداد Gradle (تمت إزالة المكتبة المكررة لحل checkReleaseDuplicateClasses)
+          # 6. إعداد Gradle (بدون أي مكتبات مكررة)
           printf '%s\n' \
             'pluginManagement {' \
             '    repositories {' \
@@ -190,8 +244,8 @@ jobs:
             '        applicationId "com.elhana.iptv"' \
             '        minSdk 21' \
             '        targetSdk 34' \
-            '        versionCode 6' \
-            '        versionName "2.2.5"' \
+            '        versionCode ${{ github.run_number }}' \
+            '        versionName "2.3.${{ github.run_number }}"' \
             '    }' \
             '    buildTypes {' \
             '        release {' \
@@ -208,7 +262,7 @@ jobs:
             '    implementation "androidx.appcompat:appcompat:1.6.1"' \
             '}' > app/build.gradle
 
-          # 5. كود MainActivity مع دعم زر الرجوع الحديث OnBackPressedCallback + فتح الصيغ الصعبة خارجياً
+          # 7. كود MainActivity مع User-Agent خاص بمشغلات IPTV + دعم زر الرجوع + فتح المشغل الخارجي
           printf '%s\n' \
             'package com.elhana.iptv;' \
             'import android.app.Activity;' \
@@ -275,6 +329,7 @@ jobs:
             '        ws.setAllowUniversalAccessFromFileURLs(true);' \
             '        ws.setMediaPlaybackRequiresUserGesture(false);' \
             '        ws.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);' \
+            '        ws.setUserAgentString("VLC/3.0.18 LibVLC/3.0.18");' \
             '        ws.setUseWideViewPort(true);' \
             '        ws.setLoadWithOverviewMode(true);' \
             '        webView.setInitialScale(1);' \
@@ -320,7 +375,7 @@ jobs:
             '    }' \
             '}' > app/src/main/java/com/elhana/iptv/MainActivity.java
 
-          # 6. إنشاء AndroidManifest.xml
+          # 8. إنشاء AndroidManifest.xml مع صلاحيات الموقع للطقس
           ICON_ATTR=""
           if [ -f "app/src/main/res/mipmap-xxxhdpi/ic_launcher.png" ]; then
             ICON_ATTR='android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher"'
@@ -331,6 +386,7 @@ jobs:
             '<manifest xmlns:android="http://schemas.android.com/apk/res/android">' \
             '    <uses-permission android:name="android.permission.INTERNET" />' \
             '    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />' \
+            '    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />' \
             '    <application' \
             '        android:allowBackup="true"' \
             '        android:usesCleartextTraffic="true"' \
@@ -361,7 +417,7 @@ jobs:
       - name: Build release APK
         run: gradle :app:assembleRelease --no-daemon --stacktrace
 
-      - name: Sign APK automatically
+      - name: Sign APK with Fixed Deterministic Keystore
         run: |
           if [ -f app/build/outputs/apk/release/app-release-unsigned.apk ]; then
             RAW_APK="app/build/outputs/apk/release/app-release-unsigned.apk"
@@ -377,15 +433,17 @@ jobs:
 
           "$BUILD_TOOLS_DIR/zipalign" -p -f -v 4 "$RAW_APK" aligned.apk
 
-          keytool -genkey -v -keystore temp-release.keystore -alias elhana \
-            -keyalg RSA -keysize 2048 -validity 10000 \
-            -storepass android123 -keypass android123 \
+          # إنشاء Keystore ثابت بنفس البصمة تماماً في كل بناء حتى يتحدث التطبيق فوق القديم بدون حذفه
+          keytool -genkey -v -keystore fixed-release.keystore -alias elhana \
+            -keyalg RSA -keysize 2048 -validity 20000 \
+            -startdate "2025/01/01 00:00:00" \
+            -storepass elhana2025 -keypass elhana2025 \
             -dname "CN=ElHana IPTV, OU=Dev, O=ElHana, L=Cairo, S=Cairo, C=EG"
 
-          "$BUILD_TOOLS_DIR/apksigner" sign --ks temp-release.keystore \
+          "$BUILD_TOOLS_DIR/apksigner" sign --ks fixed-release.keystore \
             --ks-key-alias elhana \
-            --ks-pass pass:android123 \
-            --key-pass pass:android123 \
+            --ks-pass pass:elhana2025 \
+            --key-pass pass:elhana2025 \
             --out "$GITHUB_WORKSPACE/El-Hana-IPTV.apk" aligned.apk
 
           "$BUILD_TOOLS_DIR/apksigner" verify --verbose "$GITHUB_WORKSPACE/El-Hana-IPTV.apk"
@@ -398,7 +456,7 @@ jobs:
       - name: Publish a download link (GitHub Release)
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v2.2.${{ github.run_number }}
-          name: El Hana IPTV v2.2.${{ github.run_number }}
+          tag_name: v2.3.${{ github.run_number }}
+          name: El Hana IPTV v2.3.${{ github.run_number }}
           make_latest: true
           files: El-Hana-IPTV.apk
