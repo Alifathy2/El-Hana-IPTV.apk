@@ -13,7 +13,8 @@
   var timeOffset = +(store(K.toff) || 0);
   function nowMs() { return Date.now() + timeOffset; }
   function nowDate() { return new Date(nowMs()); }
-  var play = { live: false, list: null, index: 0, url: '', master: '', title: '', triedTs: false, ep: null };
+  var play = { live: false, list: null, index: 0, url: '', master: '', title: '', triedTs: false, triedAltVod: false, ep: null };
+  var hlsInst = null;
 
   function store(k, v) {
     try { if (v === undefined) return JSON.parse(localStorage.getItem(k)); localStorage.setItem(k, JSON.stringify(v)); } catch (e) { return null; }
@@ -38,17 +39,19 @@
       noFav: 'لا يوجد شيء في المفضلة بعد', favAdd: 'إضافة للمفضلة', favRemove: 'إزالة من المفضلة', favHint: 'الزر الأصفر في الريموت = إضافة / إزالة من المفضلة',
       play: 'تشغيل', noPlot: 'لا توجد تفاصيل متاحة', nowLbl: 'الآن: ', nextLbl: 'التالي: ', dirLbl: 'المخرج: ', castLbl: 'الممثلون: ', minShort: 'د',
       newOnSrv: 'جديد على السيرفر: ', movie1: 'فيلم', movieN: 'فيلم', series1: 'مسلسل', seriesN: 'مسلسل', and: 'و',
-      resume: 'استكمال من ', buffering: 'جاري التحميل…', cantPlay: 'تعذر تشغيل هذا المحتوى', liveLbl: 'بث مباشر',
+      resume: 'استكمال من ', buffering: 'جاري التحميل…', cantPlay: 'تعذر تشغيل هذا المحتوى — جرب زر المشغل الخارجي', liveLbl: 'بث مباشر',
       qualOnly: 'تغيير الجودة متاح للقنوات المباشرة متعددة الجودة فقط', qualRead: 'جاري قراءة الجودات المتاحة…', qualOne: 'هذه القناة متاحة بجودة واحدة فقط',
       qualAuto: 'تلقائي (الأعلى)', qLow: '— الأقل', qHigh: '— الأعلى', qTitle: 'الجودة (من الأقل إلى الأعلى)', qDone: 'تم تغيير الجودة', qFail: 'تعذر قراءة الجودات من السيرفر',
       noAudio: 'لا توجد مسارات صوتية أخرى في هذا البث', track: 'مسار', audioDone: 'تم تغيير المسار الصوتي', audioTitle: 'المسار الصوتي / المعلق',
-      btnQuality: 'الجودة', btnAudio: 'الصوت / المعلق', rew: 'رجوع 10 ثوان', fwd: 'تقديم 30 ثانية', stop: 'إيقاف',
+      btnQuality: 'الجودة', btnAudio: 'الصوت / المعلق', btnExtPlayer: 'مشغل خارجي', extOpening: 'جاري فتح المشغل الخارجي…',
+      rew: 'رجوع 10 ثوان', fwd: 'تقديم 30 ثانية', stop: 'إيقاف',
       exitQ: 'هل تريد الخروج من التطبيق؟', ok: 'موافق', cancel: 'إلغاء', offline: 'لا يوجد اتصال بالإنترنت', online: 'عاد الاتصال بالإنترنت',
       secGeneral: 'عام', secTime: 'الوقت', secSpeedbar: 'شريط السرعة', secSpeedtest: 'اختبار السرعة',
       language: 'اللغة', sound: 'صوت التنقل', on: 'شغال', off: 'متوقف', clockFmt: 'صيغة الساعة', h12: '12 ساعة', h24: '24 ساعة', am: 'ص', pm: 'م', nowTime: 'الوقت الآن: ',
       sbShow: 'إظهار شريط السرعة', sbColor: 'لون شريط السرعة', cWhite: 'أبيض', cBlack: 'أسود', cYellow: 'أصفر', cCyan: 'سماوي', cGreen: 'أخضر', cRed: 'أحمر',
       stStart: 'ابدأ الاختبار', stRunning: 'جاري الاختبار…', stPing: 'زمن الاستجابة', stDown: 'التحميل', stUp: 'الرفع', stDone: 'تم الاختبار', stFail: 'فشل الاختبار، تحقق من الاتصال',
-      stNote: 'الاختبار يتصل بخوادم Cloudflare فقط عند الضغط على "ابدأ الاختبار".', exitAppBtn: 'خروج', catsLbl: 'القائمة الجانبية', phoneAddBtn: 'إضافة من الموبايل (QR)', phoneTitle: 'إضافة حساب من الموبايل', phoneStep1: '١) افتح كاميرا الموبايل وامسح الكود', phoneStep2: '٢) اكتب بيانات Xtream أو رابط M3U في الصفحة واضغط إرسال', phoneWaiting: 'في انتظار الموبايل…', phoneGot: 'تم استلام البيانات، جاري الدخول…', phoneNoCrypto: 'الشاشة دي ما بتدعمش النقل الآمن، اكتب البيانات يدوياً', phoneErr: 'تعذر الاتصال بخدمة الاستقبال، جرّب مرة تانية', phoneSecure: 'البيانات بتتشفر على الموبايل وما بتتفكش غير على الشاشة.', bgWarn: 'تنبيه: تطبيق El Hana IPTV غير مرتبط بموقع postimages.org ولا بأي موقع صور آخر، ولا يتحمل مسؤولية محتواه. استخدم الصور على مسؤوليتك.',  refreshBtn: 'تحديث الواجهة', refreshedMsg: 'تم تحديث الواجهة الرئيسية والبيانات', changeBgBtn: 'تغيير الخلفية', bgChanged: 'تم تغيير خلفية الواجهة الرئيسية', bgReset: 'تمت استعادة الخلفية الافتراضية', bgModalTitle: 'تغيير خلفية الواجهة الرئيسية', bgPhoneTitle: '1. رفع صورة من تليفونك (QR)', bgPhoneDesc: 'امسح الكود بكاميرا تليفونك لرفع الصورة على موقع استضافة مجاني ثم الصق رابط الصورة المباشر هنا، أو اختر صورة من الجهاز مباشرة:', bgDirectTitle: '2. اختيار صورة من الجهاز أو رابط مباشر', bgPickDevice: 'اختيار صورة من الجهاز / الفلاشة', bgUrlPh: 'الصق رابط الصورة المباشر (https://...)', bgApplyUrlBtn: 'تطبيق رابط الصورة', stStop: 'إنهاء الاختبار', stStopped: 'تم إيقاف الاختبار', sbSize: 'حجم خط شريط السرعة', szSmall: 'صغير', szMed: 'متوسط', szLarge: 'كبير', szXL: 'ضخم', sbPkgWarn: '⚠️ تنبيه هام: تفعيل شريط السرعة العلوي أو إجراء اختبارات السرعة المتكررة يستهلك من باقة الإنترنت (وي WE) أثناء التشغيل. إذا كنت على باقة محدودة يُنصح بإيقافه من الأعلى لتوفير الباقة.', timeSync: 'ضبط الوقت تلقائياً', timeReset: 'وقت التلفزيون', timeSyncing: 'جاري مزامنة الوقت…', timeSynced: 'تم ضبط الوقت بنجاح', timeSyncFail: 'تعذر ضبط الوقت', secThemes: 'السمات والمظهر', secSubInfo: 'بيانات الاشتراك', secDevInfo: 'بيانات الجهاز', secContact: 'تواصل بنا', secAbout: 'من نحن', secClearData: 'مسح البيانات', themeChoose: 'اختر سمة بالصور للواجهة:', bgResetBtn: 'استعادة الخلفية الافتراضية', thDefault: 'الافتراضي الملكي', thAhly: 'النادي الأهلي 🔴', thZamalek: 'نادي الزمالك ⚪', thIslamic: 'المسجد النبوي 🕌', thQuran: 'الكعبة المشرفة 🕋', thKids: 'عالم الأطفال 🧸', thAvengers: 'أفينجرز ⚡', thIronman: 'أيرون مان 🦾', thGold: 'الذهبي الفاخر ✨', thMidnight: 'ليلي هادئ 🌙', praiseTop: '⭐ عمل استثنائي بتقييم مرتفع على IMDb! يُعد من أبرز الأعمال الموصى بمشاهدتها لما يتميز به من حبكة مشوقة وإخراج متقن.', praiseGood: '🎬 عمل مميز يحظى بإشادة الجمهور على IMDb، يجمع بين الإثارة وجودة الأداء التمثيلي.', praiseAvg: '🍿 خيار ترفيهي ممتع للمشاهدة العائلية ومتابعي هذا التصنيف.', subUser: 'اسم المستخدم', subStatus: 'حالة الاشتراك', subExp: 'تاريخ الانتهاء', subMaxConn: 'أقصى عدد أجهزة', subActiveConn: 'المتصل حالياً', subServer: 'رابط السيرفر', subType: 'نوع الحساب', devPlatform: 'نظام التشغيل', devRes: 'دقة الشاشة', devLang: 'لغة الجهاز', devNet: 'حالة الاتصال', devAppVer: 'إصدار التطبيق', devStorage: 'حجم البيانات المحفوظة', contactTitle: 'يسعدنا تواصلكم معنا للدعم الفني والاستفسارات:', contactEmailLbl: 'البريد الإلكتروني', contactPhoneLbl: 'رقم الهاتف / واتساب', contactDevLbl: 'المطور', aboutText: 'تطبيق El Hana IPTV هو مشغّل وسائط ذكي متطور مصمم خصيصاً لشاشات LG الذكية (webOS)، يوفّر تجربة مشاهدة سلسة وسريعة للقنوات المباشرة والأفلام والمسلسلات بجودة عالية مع دعم تعدد الحسابات والسمات المخصصة.\n\nتنويه قانوني: التطبيق عبارة عن مشغّل تقني فقط ولا يتضمن أو يبيع أي محتوى مرئي.', clearWarn: 'سيؤدي مسح البيانات إلى حذف جميع الحسابات المحفوظة، المفضلة، سجل المشاهدة، والسمات والعودة إلى نقطة البداية من جديد.', clearBtn: 'مسح جميع البيانات وإعادة التشغيل', clearDone: 'تم مسح البيانات بنجاح… جاري إعادة التشغيل', termsTitle: 'سياسة الخصوصية والشروط والأحكام', termsAccept: 'موافق (Accept)', termsDecline: 'رفض وخروج', termsText: 'مرحباً بك في تطبيق El Hana IPTV.\n\n1. طبيعة التطبيق: هذا التطبيق هو مشغّل وسائط تقني فقط، ولا يوفّر أو يبيع أو يستضيف أي قنوات تلفزيونية أو أفلام أو مسلسلات أو قوائم تشغيل.\n2. مسؤولية المحتوى: المستخدم هو المسؤول الوحيد عن الروابط والبيانات (Xtream Codes أو M3U) التي يقوم بإدخالها، ويجب أن يمتلك حقوق الوصول القانونية لها.\n3. الخصوصية: يتم حفظ بيانات اشتراكك ومفضلتك وسجل مشاهداتك محلياً على جهاز التلفزيون الخاص بك فقط ولا يتم مشاركتها مع أي طرف ثالث.\n\nبالضغط على «موافق»، فإنك تقر بموافقتك الكاملة على هذه الشروط وسياسة الخصوصية.', secUpdate: 'التحديث', updVer: 'الإصدار الحالي', updCheck: 'تحقق من التحديث', updReset: 'العودة للنسخة الأصلية', updChecking: 'جاري البحث عن تحديث…', updLatest: 'أنت على آخر إصدار', updDone: 'تم تنزيل التحديث… جاري إعادة التشغيل', updReady: 'تحديث جديد جاهز، أعد فتح التطبيق', updFail: 'تعذر التحديث، تأكد من الإنترنت', updResetDone: 'تم الرجوع للنسخة الأصلية… جاري إعادة التشغيل'
+      stNote: 'الاختبار يتصل بالخادم فقط عند الضغط على "ابدأ الاختبار".', exitAppBtn: 'خروج', catsLbl: 'القائمة الجانبية', phoneAddBtn: 'إضافة من الموبايل (QR)', phoneTitle: 'إضافة حساب من الموبايل', phoneStep1: '١) افتح كاميرا الموبايل وامسح الكود', phoneStep2: '٢) اكتب بيانات Xtream أو رابط M3U في الصفحة واضغط إرسال', phoneWaiting: 'في انتظار الموبايل…', phoneGot: 'تم استلام البيانات، جاري الدخول…', phoneNoCrypto: 'الشاشة دي ما بتدعمش النقل الآمن، اكتب البيانات يدوياً', phoneErr: 'تعذر الاتصال بخدمة الاستقبال، جرّب مرة تانية', phoneSecure: 'البيانات بتتشفر على الموبايل وما بتتفكش غير على الشاشة.', bgWarn: 'تنبيه: تطبيق El Hana IPTV غير مرتبط بأي موقع صور خارجي ولا يتحمل مسؤولية محتواه. استخدم الصور على مسؤوليتك.', refreshBtn: 'تحديث الواجهة', refreshedMsg: 'تم تحديث الواجهة الرئيسية والبيانات', changeBgBtn: 'تغيير الخلفية', bgChanged: 'تم تغيير خلفية الواجهة الرئيسية', bgReset: 'تمت استعادة الخلفية الافتراضية', bgModalTitle: 'تغيير خلفية الواجهة الرئيسية', bgPhoneTitle: '1. رفع صورة من تليفونك (QR)', bgPhoneDesc: 'امسح الكود بكاميرا تليفونك لرفع الصورة على موقع استضافة مجاني ثم الصق رابط الصورة المباشر هنا، أو اختر صورة من الجهاز مباشرة:', bgDirectTitle: '2. اختيار صورة من الجهاز أو رابط مباشر', bgPickDevice: 'اختيار صورة من الجهاز / الفلاشة', bgUrlPh: 'الصق رابط الصورة المباشر (https://...)', bgApplyUrlBtn: 'تطبيق رابط الصورة', stStop: 'إنهاء الاختبار', stStopped: 'تم إيقاف الاختبار', sbSize: 'حجم خط شريط السرعة', szSmall: 'صغير', szMed: 'متوسط', szLarge: 'كبير', szXL: 'ضخم', sbPkgWarn: '⚠️ تنبيه هام: تفعيل شريط السرعة العلوي أو إجراء اختبارات السرعة المتكررة يستهلك من باقة الإنترنت (وي WE) أثناء التشغيل. إذا كنت على باقة محدودة يُنصح بإيقافه من الأعلى لتوفير الباقة.', timeSync: 'ضبط الوقت تلقائياً', timeReset: 'وقت التلفزيون', timeSyncing: 'جاري مزامنة الوقت…', timeSynced: 'تم ضبط الوقت بنجاح', timeSyncFail: 'تعذر ضبط الوقت', secThemes: 'السمات والمظهر', secSubInfo: 'بيانات الاشتراك', secDevInfo: 'بيانات الجهاز', secContact: 'تواصل بنا', secAbout: 'من نحن', secClearData: 'مسح البيانات', themeChoose: 'اختر سمة بالصور للواجهة:', bgResetBtn: 'استعادة الخلفية الافتراضية', thDefault: 'الافتراضي الملكي', thAhly: 'النادي الأهلي 🔴', thZamalek: 'نادي الزمالك ⚪', thIslamic: 'المسجد النبوي 🕌', thQuran: 'الكعبة المشرفة 🕋', thKids: 'عالم الأطفال 🧸', thAvengers: 'أفينجرز ⚡', thIronman: 'أيرون مان 🦾', thGold: 'الذهبي الفاخر ✨', thMidnight: 'ليلي هادئ 🌙', praiseTop: '⭐ عمل استثنائي بتقييم مرتفع على IMDb! يُعد من أبرز الأعمال الموصى بمشاهدتها لما يتميز به من حبكة مشوقة وإخراج متقن.', praiseGood: '🎬 عمل مميز يحظى بإشادة الجمهور على IMDb، يجمع بين الإثارة وجودة الأداء التمثيلي.', praiseAvg: '🍿 خيار ترفيهي ممتع للمشاهدة العائلية ومتابعي هذا التصنيف.', subUser: 'اسم المستخدم', subStatus: 'حالة الاشتراك', subExp: 'تاريخ الانتهاء', subMaxConn: 'أقصى عدد أجهزة', subActiveConn: 'المتصل حالياً', subServer: 'رابط السيرفر', subType: 'نوع الحساب', devPlatform: 'نظام التشغيل', devRes: 'دقة الشاشة', devLang: 'لغة الجهاز', devNet: 'حالة الاتصال', devAppVer: 'إصدار التطبيق', devStorage: 'حجم البيانات المحفوظة', contactTitle: 'يسعدنا تواصلكم معنا للدعم الفني والاستفسارات:', contactEmailLbl: 'البريد الإلكتروني', contactPhoneLbl: 'رقم الهاتف / واتساب', contactDevLbl: 'المطور', aboutText: 'تطبيق El Hana IPTV هو مشغّل وسائط ذكي متطور يوفّر تجربة مشاهدة سلسة وسريعة للقنوات المباشرة والأفلام والمسلسلات بجودة عالية مع دعم تعدد الحسابات والسمات المخصصة.\n\nتنويه قانوني: التطبيق عبارة عن مشغّل تقني فقط ولا يتضمن أو يبيع أي محتوى مرئي.', clearWarn: 'سيؤدي مسح البيانات إلى حذف جميع الحسابات المحفوظة، المفضلة، سجل المشاهدة، والسمات والعودة إلى نقطة البداية من جديد.', clearBtn: 'مسح جميع البيانات وإعادة التشغيل', clearDone: 'تم مسح البيانات بنجاح… جاري إعادة التشغيل', termsTitle: 'سياسة الخصوصية والشروط والأحكام', termsAccept: 'موافق (Accept)', termsDecline: 'رفض وخروج', termsText: 'مرحباً بك في تطبيق El Hana IPTV.\n\n1. طبيعة التطبيق: هذا التطبيق هو مشغّل وسائط تقني فقط، ولا يوفّر أو يبيع أو يستضيف أي قنوات تلفزيونية أو أفلام أو مسلسلات أو قوائم تشغيل.\n2. مسؤولية المحتوى: المستخدم هو المسؤول الوحيد عن الروابط والبيانات (Xtream Codes أو M3U) التي يقوم بإدخالها، ويجب أن يمتلك حقوق الوصول القانونية لها.\n3. الخصوصية: يتم حفظ بيانات اشتراكك ومفضلتك وسجل مشاهداتك محلياً على جهازك فقط ولا يتم مشاركتها مع أي طرف ثالث.\n\nبالضغط على «موافق»، فإنك تقر بموافقتك الكاملة على هذه الشروط وسياسة الخصوصية.',
+      secUpdate: 'تحديث التطبيق', updTitle: 'مركز تحديث التطبيق', updDesc: 'يمكنك التحقق من توفر إصدارات جديدة وتحديث التطبيق مباشرة للحصول على أحدث التحسينات.', updVer: 'الإصدار الحالي', updCheck: 'تحديث التطبيق الآن', updReset: 'العودة للنسخة الأصلية', updChecking: 'جاري البحث عن تحديث للتطبيق…', updLatest: 'التطبيق محدّث إلى آخر إصدار', updDone: 'تم تنزيل التحديث بنجاح… جاري إعادة التشغيل', updReady: 'يتوفر تحديث جديد للتطبيق، أعد فتح التطبيق للتفعيل', updFail: 'تعذر التحديث، تأكد من الاتصال بالإنترنت', updResetDone: 'تم الرجوع للنسخة الأصلية… جاري إعادة التشغيل'
     },
     en: {
       name_ph: 'Account name (e.g. Home)', host_ph: 'Server URL or full get.php link', user_ph: 'Username', pass_ph: 'Password', m3u_ph: 'M3U playlist URL',
@@ -64,17 +67,19 @@
       noFav: 'Nothing in favorites yet', favAdd: 'Add to favorites', favRemove: 'Remove from favorites', favHint: 'Yellow remote button = add / remove favorite',
       play: 'Play', noPlot: 'No details available', nowLbl: 'Now: ', nextLbl: 'Next: ', dirLbl: 'Director: ', castLbl: 'Cast: ', minShort: 'min',
       newOnSrv: 'New on your server: ', movie1: 'movie', movieN: 'movies', series1: 'series', seriesN: 'series', and: 'and',
-      resume: 'Resuming from ', buffering: 'Loading…', cantPlay: 'Unable to play this content', liveLbl: 'LIVE',
+      resume: 'Resuming from ', buffering: 'Loading…', cantPlay: 'Unable to play — try External Player button', liveLbl: 'LIVE',
       qualOnly: 'Quality switching is only available for live channels with several qualities', qualRead: 'Reading available qualities…', qualOne: 'This channel has only one quality',
       qualAuto: 'Auto (highest)', qLow: '— Lowest', qHigh: '— Highest', qTitle: 'Quality (lowest to highest)', qDone: 'Quality changed', qFail: 'Could not read qualities from the server',
       noAudio: 'No other audio tracks in this stream', track: 'Track', audioDone: 'Audio track changed', audioTitle: 'Audio track / commentary',
-      btnQuality: 'Quality', btnAudio: 'Audio / Commentary', rew: 'Back 10 seconds', fwd: 'Forward 30 seconds', stop: 'Stop',
+      btnQuality: 'Quality', btnAudio: 'Audio / Commentary', btnExtPlayer: 'External Player', extOpening: 'Opening external player…',
+      rew: 'Back 10 seconds', fwd: 'Forward 30 seconds', stop: 'Stop',
       exitQ: 'Do you want to exit the app?', ok: 'OK', cancel: 'Cancel', offline: 'No internet connection', online: 'Internet connection restored',
       secGeneral: 'General', secTime: 'Time', secSpeedbar: 'Speed bar', secSpeedtest: 'Speed test',
       language: 'Language', sound: 'Navigation sound', on: 'On', off: 'Off', clockFmt: 'Clock format', h12: '12-hour', h24: '24-hour', am: 'AM', pm: 'PM', nowTime: 'Current time: ',
       sbShow: 'Show speed bar', sbColor: 'Speed bar color', cWhite: 'White', cBlack: 'Black', cYellow: 'Yellow', cCyan: 'Cyan', cGreen: 'Green', cRed: 'Red',
       stStart: 'Start test', stRunning: 'Testing…', stPing: 'Ping', stDown: 'Download', stUp: 'Upload', stDone: 'Test complete', stFail: 'Test failed, check your connection',
-      stNote: 'The test connects to Cloudflare servers only when you press "Start test".', exitAppBtn: 'Exit', catsLbl: 'Sidebar', phoneAddBtn: 'Add from phone (QR)', phoneTitle: 'Add an account from your phone', phoneStep1: '1) Scan this code with your phone camera', phoneStep2: '2) Enter your Xtream details or M3U link on the page and press Send', phoneWaiting: 'Waiting for your phone…', phoneGot: 'Details received, signing in…', phoneNoCrypto: 'This TV does not support secure transfer; please type the details', phoneErr: 'Could not reach the relay service, please try again', phoneSecure: 'Details are encrypted on your phone and only decrypted here on the TV.', bgWarn: 'Notice: El Hana IPTV is not affiliated with postimages.org or any other image website and is not responsible for their content. Use images at your own risk.',  refreshBtn: 'Refresh UI', refreshedMsg: 'Home interface & cache refreshed', changeBgBtn: 'Change Background', bgChanged: 'Home background updated', bgReset: 'Default background restored', bgModalTitle: 'Change Home Screen Background', bgPhoneTitle: '1. Upload from Phone (QR)', bgPhoneDesc: 'Scan this QR code with your phone to upload your photo and paste the direct image link, or pick directly from your device:', bgDirectTitle: '2. Device File or Direct Image URL', bgPickDevice: 'Choose Image from Device / USB', bgUrlPh: 'Paste direct image URL (https://...)', bgApplyUrlBtn: 'Apply Image URL', stStop: 'Stop test', stStopped: 'Test stopped', sbSize: 'Speed bar font size', szSmall: 'Small', szMed: 'Medium', szLarge: 'Large', szXL: 'Extra Large', sbPkgWarn: '⚠️ Data Usage Warning: Enabling the top speed bar or running repeated speed tests consumes mobile/home internet quota (WE) while streaming. Turn it off above if you are on a limited data plan.', timeSync: 'Sync time automatically', timeReset: 'Use TV time', timeSyncing: 'Syncing time…', timeSynced: 'Time synced successfully', timeSyncFail: 'Time sync failed', secThemes: 'Themes', secSubInfo: 'Subscription Info', secDevInfo: 'Device Info', secContact: 'Contact Us', secAbout: 'About Us', secClearData: 'Clear Data', themeChoose: 'Choose a visual theme for the interface:', bgResetBtn: 'Reset Default Background', thDefault: 'Royal Default', thAhly: 'Al Ahly SC 🔴', thZamalek: 'Zamalek SC ⚪', thIslamic: 'Prophet Mosque 🕌', thQuran: 'Holy Kaaba 🕋', thKids: 'Kids World 🧸', thAvengers: 'Avengers ⚡', thIronman: 'Iron Man 🦾', thGold: 'Luxury Gold ✨', thMidnight: 'Midnight Calm 🌙', praiseTop: '⭐ Critically acclaimed on IMDb! Highly recommended for its gripping storyline and top-tier production.', praiseGood: '🎬 Popular title praised by viewers on IMDb, featuring strong performances and engaging direction.', praiseAvg: '🍿 Entertaining pick for fans of this genre.', subUser: 'Username', subStatus: 'Status', subExp: 'Expiration Date', subMaxConn: 'Max Connections', subActiveConn: 'Active Connections', subServer: 'Server URL', subType: 'Account Type', devPlatform: 'Platform / OS', devRes: 'Screen Resolution', devLang: 'Device Language', devNet: 'Network Status', devAppVer: 'App Version', devStorage: 'Saved Storage', contactTitle: 'Reach out to us for support and inquiries:', contactEmailLbl: 'Email', contactPhoneLbl: 'Phone / WhatsApp', contactDevLbl: 'Developer', aboutText: 'El Hana IPTV is an advanced smart media player crafted for LG webOS Smart TVs, offering ultra-smooth playback for Live TV, Movies, and Series with multi-account support and rich custom themes.\n\nDisclaimer: This app is strictly a media player and does not provide or sell any media content.', clearWarn: 'Clearing data will erase all saved accounts, favorites, watch progress, and custom themes, resetting the app to a fresh start.', clearBtn: 'Clear All Data & Restart', clearDone: 'All data cleared… restarting', termsTitle: 'Privacy Policy & Terms of Service', termsAccept: 'Accept', termsDecline: 'Decline & Exit', termsText: 'Welcome to El Hana IPTV.\n\n1. Media Player Only: This application is strictly a technical media player. It does not include, sell, host, or provide any TV channels, movies, series, or playlists.\n2. User Responsibility: You are solely responsible for the Xtream Codes credentials or M3U playlist links you enter and must ensure you have legal rights to access such streams.\n3. Privacy: Your account credentials, favorites, and watch progress are stored locally on your TV device only and are never shared with third parties.\n\nBy clicking "Accept", you agree to these Terms of Service and Privacy Policy.', secUpdate: 'Updates', updVer: 'Current version', updCheck: 'Check for updates', updReset: 'Revert to original', updChecking: 'Checking for updates…', updLatest: 'You are on the latest version', updDone: 'Update downloaded… restarting', updReady: 'Update ready, reopen the app', updFail: 'Update failed, check internet connection', updResetDone: 'Reverted to original… restarting'
+      stNote: 'The test connects only when you press "Start test".', exitAppBtn: 'Exit', catsLbl: 'Sidebar', phoneAddBtn: 'Add from phone (QR)', phoneTitle: 'Add an account from your phone', phoneStep1: '1) Scan this code with your phone camera', phoneStep2: '2) Enter your Xtream details or M3U link on the page and press Send', phoneWaiting: 'Waiting for your phone…', phoneGot: 'Details received, signing in…', phoneNoCrypto: 'This device does not support secure transfer; please type the details', phoneErr: 'Could not reach the relay service, please try again', phoneSecure: 'Details are encrypted on your phone and only decrypted here.', bgWarn: 'Notice: El Hana IPTV is not affiliated with any external image website and is not responsible for their content. Use images at your own risk.', refreshBtn: 'Refresh UI', refreshedMsg: 'Home interface & cache refreshed', changeBgBtn: 'Change Background', bgChanged: 'Home background updated', bgReset: 'Default background restored', bgModalTitle: 'Change Home Screen Background', bgPhoneTitle: '1. Upload from Phone (QR)', bgPhoneDesc: 'Scan this QR code with your phone to upload your photo and paste the direct image link, or pick directly from your device:', bgDirectTitle: '2. Device File or Direct Image URL', bgPickDevice: 'Choose Image from Device / USB', bgUrlPh: 'Paste direct image URL (https://...)', bgApplyUrlBtn: 'Apply Image URL', stStop: 'Stop test', stStopped: 'Test stopped', sbSize: 'Speed bar font size', szSmall: 'Small', szMed: 'Medium', szLarge: 'Large', szXL: 'Extra Large', sbPkgWarn: '⚠️ Data Usage Warning: Enabling the top speed bar or running repeated speed tests consumes internet quota while streaming. Turn it off above if you are on a limited data plan.', timeSync: 'Sync time automatically', timeReset: 'Use device time', timeSyncing: 'Syncing time…', timeSynced: 'Time synced successfully', timeSyncFail: 'Time sync failed', secThemes: 'Themes', secSubInfo: 'Subscription Info', secDevInfo: 'Device Info', secContact: 'Contact Us', secAbout: 'About Us', secClearData: 'Clear Data', themeChoose: 'Choose a visual theme for the interface:', bgResetBtn: 'Reset Default Background', thDefault: 'Royal Default', thAhly: 'Al Ahly SC 🔴', thZamalek: 'Zamalek SC ⚪', thIslamic: 'Prophet Mosque 🕌', thQuran: 'Holy Kaaba 🕋', thKids: 'Kids World 🧸', thAvengers: 'Avengers ⚡', thIronman: 'Iron Man 🦾', thGold: 'Luxury Gold ✨', thMidnight: 'Midnight Calm 🌙', praiseTop: '⭐ Critically acclaimed on IMDb! Highly recommended for its gripping storyline and top-tier production.', praiseGood: '🎬 Popular title praised by viewers on IMDb, featuring strong performances and engaging direction.', praiseAvg: '🍿 Entertaining pick for fans of this genre.', subUser: 'Username', subStatus: 'Status', subExp: 'Expiration Date', subMaxConn: 'Max Connections', subActiveConn: 'Active Connections', subServer: 'Server URL', subType: 'Account Type', devPlatform: 'Platform / OS', devRes: 'Screen Resolution', devLang: 'Device Language', devNet: 'Network Status', devAppVer: 'App Version', devStorage: 'Saved Storage', contactTitle: 'Reach out to us for support and inquiries:', contactEmailLbl: 'Email', contactPhoneLbl: 'Phone / WhatsApp', contactDevLbl: 'Developer', aboutText: 'El Hana IPTV is an advanced smart media player offering ultra-smooth playback for Live TV, Movies, and Series with multi-account support and rich custom themes.\n\nDisclaimer: This app is strictly a media player and does not provide or sell any media content.', clearWarn: 'Clearing data will erase all saved accounts, favorites, watch progress, and custom themes, resetting the app to a fresh start.', clearBtn: 'Clear All Data & Restart', clearDone: 'All data cleared… restarting', termsTitle: 'Privacy Policy & Terms of Service', termsAccept: 'Accept', termsDecline: 'Decline & Exit', termsText: 'Welcome to El Hana IPTV.\n\n1. Media Player Only: This application is strictly a technical media player. It does not include, sell, host, or provide any TV channels, movies, series, or playlists.\n2. User Responsibility: You are solely responsible for the Xtream Codes credentials or M3U playlist links you enter and must ensure you have legal rights to access such streams.\n3. Privacy: Your account credentials, favorites, and watch progress are stored locally on your device only and are never shared with third parties.\n\nBy clicking "Accept", you agree to these Terms of Service and Privacy Policy.',
+      secUpdate: 'App Update', updTitle: 'Application Update Center', updDesc: 'Check for new releases and update the application directly to receive the latest improvements.', updVer: 'Current version', updCheck: 'Update App Now', updReset: 'Revert to original', updChecking: 'Checking for app updates…', updLatest: 'App is up to date', updDone: 'Update downloaded… restarting', updReady: 'App update ready, reopen the app', updFail: 'Update failed, check internet connection', updResetDone: 'Reverted to original… restarting'
     }
   };
   var LANG = store(K.lang) || (/^ar/i.test(navigator.language || '') ? 'ar' : 'en');
@@ -337,7 +342,6 @@
     var qrSrc = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' + encodeURIComponent(uploadHost);
     $('bgQrWrap').innerHTML = '<img src="' + qrSrc + '" alt="QR"><div class="bg-qr-url">postimages.org</div>';
     $('inBgUrl').value = '';
-    // A TV has no file picker (an <input type=file> opens nothing), so this button is only shown inside the Android app
     $('btnBgLocalFile').classList.toggle('hidden', !window.AndroidApp);
     $('bgdlg').classList.remove('hidden');
     (window.AndroidApp ? $('btnBgLocalFile') : $('inBgUrl')).focus();
@@ -347,7 +351,6 @@
     if (curScreen() === 'home' && $('btnHomeBg')) $('btnHomeBg').focus();
     else if (curScreen() === 'settings') renderSettings('themes');
   }
-  /* Fit any picture to the screen: scale to cover the screen size and crop the centre */
   function screenSize() {
     var w = Math.max(window.screen.width || 0, window.innerWidth || 0) || 1920, h = Math.max(window.screen.height || 0, window.innerHeight || 0) || 1080;
     if (w < h) { var t = w; w = h; h = t; }
@@ -389,7 +392,6 @@
   function applyBgUrl() {
     var u = $('inBgUrl').value.trim();
     if (!u) return;
-    // try to resample to the screen size; if the site blocks it (no CORS) keep the link and let CSS "cover" fit it
     fitBgToScreen(u, function (d) { saveBg(d || u); });
   }
   function resetHomeBg() {
@@ -462,7 +464,7 @@
     showScreen('home'); showHomeInfo();
     var tiles = document.querySelectorAll('.tile'), want = tiles[0];
     for (var i = 0; i < tiles.length; i++) if (tiles[i].getAttribute('data-type') === state.type) want = tiles[i];
-    want.focus();
+    if (want && want.focus) want.focus();
   }
   function refreshHome() {
     cache = { cats: {}, streams: {} };
@@ -815,7 +817,7 @@
     var ty = itType(); openDetail(ty, state.list[i], i);
   }
 
-  /* ---------- المشغل ---------- */
+  /* ---------- المشغل الداخلي المدمج + المشغل الخارجي ---------- */
   var ICO_PLAY = '<svg viewBox="0 0 24 24" width="46" height="46" fill="#fff"><path d="M8 5v14l11-7z"/></svg>';
   var ICO_PAUSE = '<svg viewBox="0 0 24 24" width="46" height="46" fill="#fff"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>';
   var osdTimer = null, msgTimer = null, menu = { open: false, items: [], opener: null, el: null };
@@ -823,6 +825,7 @@
   function fmt(s) { s = Math.max(0, Math.floor(s || 0)); var h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), sec = s % 60; return (h ? h + ':' + two(m) : m) + ':' + two(sec); }
   function say(m) { var e = $('playerMsg'); e.textContent = m; e.classList.remove('hidden'); clearTimeout(msgTimer); msgTimer = setTimeout(function () { e.classList.add('hidden'); }, 3500); }
   function playerOpen() { return !$('player').classList.contains('hidden'); }
+  function osdVisible() { return !$('osd').classList.contains('hidden'); }
   function pbFocused() { var a = document.activeElement; return !!(a && a.classList && (a.classList.contains('pb') || a.classList.contains('pm'))); }
   function updPlayBtn() { $('pbPlay').innerHTML = $('video').paused ? ICO_PLAY : ICO_PAUSE; }
 
@@ -836,6 +839,55 @@
     closeMenu(true); $('osd').classList.add('hidden');
     if (pbFocused()) document.activeElement.blur();
   }
+  function destroyHls() {
+    if (hlsInst) {
+      try { hlsInst.destroy(); } catch (e) {}
+      hlsInst = null;
+    }
+  }
+  function setVideoSource(v, url) {
+    destroyHls();
+    var isM3u8 = /\.m3u8(\?|$)/i.test(url);
+    if (isM3u8 && window.Hls && window.Hls.isSupported() && !v.canPlayType('application/vnd.apple.mpegurl')) {
+      hlsInst = new window.Hls({ enableWorker: true, lowLatencyMode: false, maxBufferLength: 30 });
+      hlsInst.loadSource(url);
+      hlsInst.attachMedia(v);
+      hlsInst.on(window.Hls.Events.MANIFEST_PARSED, function () { safePlay(v); });
+      hlsInst.on(window.Hls.Events.ERROR, function (ev, data) {
+        if (data && data.fatal) {
+          destroyHls();
+          v.src = url;
+          safePlay(v);
+        }
+      });
+    } else {
+      v.src = url;
+      safePlay(v);
+    }
+  }
+  function openExternalPlayer() {
+    var u = play.url || play.master;
+    if (!u) return;
+    say(tr('extOpening'));
+    try {
+      if (window.AndroidApp && typeof window.AndroidApp.openExternalPlayer === 'function') {
+        window.AndroidApp.openExternalPlayer(u, play.title || 'El Hana IPTV');
+        return;
+      }
+      if (window.Android && typeof window.Android.openExternalPlayer === 'function') {
+        window.Android.openExternalPlayer(u);
+        return;
+      }
+    } catch (e) {}
+    var stripped = u.replace(/^https?:\/\//i, '');
+    var scheme = /^https:/i.test(u) ? 'https' : 'http';
+    var intentUrl = 'intent://' + stripped + '#Intent;type=video/*;scheme=' + scheme + ';S.title=' + encodeURIComponent(play.title || 'El Hana IPTV') + ';end';
+    try {
+      window.location.href = intentUrl;
+    } catch (e2) {
+      try { window.open(u, '_system'); } catch (e3) {}
+    }
+  }
   function startPlay(url, title, live, list, index, ep) {
     lastFocus = document.activeElement;
     play.live = live; play.list = list || null; play.index = index || 0; play.ep = ep || null;
@@ -844,17 +896,18 @@
   }
   function load(url, title) {
     var v = $('video');
-    play.url = url; play.master = url; play.triedTs = false; play.title = title;
+    play.url = url; play.master = url; play.triedTs = false; play.triedAltVod = false; play.title = title;
     $('osd').classList.toggle('live', play.live);
     $('osdTitle').textContent = title; $('osdFill').style.width = '0';
     $('osdTime').textContent = play.live ? tr('liveLbl') : '';
     showOsd(false);
-    v.src = url; safePlay(v);
+    setVideoSource(v, url);
   }
   function closePlayer() {
     if (!playerOpen()) return;
     var v = $('video');
     savePos(); updPosterBars(); hideOsd();
+    destroyHls();
     v.pause(); v.removeAttribute('src'); v.load();
     $('player').classList.add('hidden');
     if (lastFocus && lastFocus.focus) lastFocus.focus();
@@ -915,10 +968,12 @@
   }
   function seek(d) { var v = $('video'); if (!play.live) { v.currentTime = Math.max(0, v.currentTime + d); showOsd(false); } }
   function safePlay(v) { try { var r = v.play(); if (r && r.catch) r.catch(function () {}); } catch (e) {} }
-  function togglePlay() { var v = $('video'); if (v.paused) safePlay(v); else v.pause(); }
+  function togglePlay() { var v = $('video'); if (v.paused) safePlay(v); else v.pause(); updPlayBtn(); }
 
   function initVideo() {
     var v = $('video');
+    v.setAttribute('playsinline', '');
+    v.setAttribute('webkit-playsinline', '');
     v.addEventListener('timeupdate', function () {
       if (!play.live && v.duration) {
         $('osdFill').style.width = (v.currentTime / v.duration * 100) + '%';
@@ -943,9 +998,31 @@
     });
     v.addEventListener('error', function () {
       if (play.live && !play.triedTs && cfg && cfg.type === 'xtream' && /\.m3u8$/.test(play.url)) {
-        play.triedTs = true; play.url = play.url.replace(/\.m3u8$/, '.ts'); play.master = play.url; v.src = play.url; safePlay(v); return;
+        play.triedTs = true; play.url = play.url.replace(/\.m3u8$/, '.ts'); play.master = play.url; setVideoSource(v, play.url); return;
       }
+      if (!play.live && !play.triedAltVod && cfg && cfg.type === 'xtream') {
+        play.triedAltVod = true;
+        if (/\.(mkv|avi|ts)(\?|$)/i.test(play.url)) {
+          play.url = play.url.replace(/\.(mkv|avi|ts)(\?|$)/i, '.mp4$2');
+          setVideoSource(v, play.url);
+          return;
+        } else if (/\.mp4(\?|$)/i.test(play.url)) {
+          play.url = play.url.replace(/\.mp4(\?|$)/i, '.m3u8$1');
+          setVideoSource(v, play.url);
+          return;
+        }
+      }
+      showOsd(false);
       say(tr('cantPlay'));
+    });
+
+    /* النقر أو اللمس على شاشة الفيديو لإظهار/إخفاء عناصر التحكم */
+    $('player').addEventListener('click', function (e) {
+      if (e.target === $('player') || e.target === v) {
+        if (menu.open) { closeMenu(false); return; }
+        if (osdVisible()) hideOsd();
+        else showOsd(false);
+      }
     });
   }
 
@@ -978,7 +1055,17 @@
     return out;
   }
   function openQuality(btn) {
-    if (!play.live || !/\.m3u8/.test(play.master)) { say(tr('qualOnly')); return; }
+    if (hlsInst && hlsInst.levels && hlsInst.levels.length > 1) {
+      var itemsH = [{ label: tr('qualAuto'), on: hlsInst.currentLevel === -1, run: function () { hlsInst.currentLevel = -1; say(tr('qDone')); } }];
+      for (var k = 0; k < hlsInst.levels.length; k++) (function (idx) {
+        var lv = hlsInst.levels[idx];
+        var lb = (lv.height ? lv.height + 'p' : Math.round(lv.bitrate / 1000) + ' kbps') + (lv.bitrate ? '  (' + (lv.bitrate / 1e6).toFixed(1) + ' Mbps)' : '');
+        itemsH.push({ label: lb, on: hlsInst.currentLevel === idx, run: function () { hlsInst.currentLevel = idx; say(tr('qDone')); } });
+      })(k);
+      openMenu(tr('qTitle'), itemsH, btn);
+      return;
+    }
+    if (!/\.m3u8/.test(play.master)) { say(tr('qualOnly')); return; }
     say(tr('qualRead'));
     xhr(play.master, 15000, true).then(function (r) {
       var vs = parseMaster(r.text, r.url);
@@ -990,11 +1077,20 @@
         if (i === vs.length - 1) lb += '  ' + tr('qHigh');
         items.push({ label: lb, url: vs[i].url, on: play.url === vs[i].url });
       }
-      items.forEach(function (it) { it.run = function () { play.url = it.url; v.src = it.url; safePlay(v); say(tr('qDone')); }; });
+      items.forEach(function (it) { it.run = function () { play.url = it.url; setVideoSource(v, it.url); say(tr('qDone')); }; });
       openMenu(tr('qTitle'), items, btn);
     }).catch(function () { say(tr('qFail')); });
   }
   function openAudio(btn) {
+    if (hlsInst && hlsInst.audioTracks && hlsInst.audioTracks.length > 1) {
+      var itemsH = [];
+      for (var k = 0; k < hlsInst.audioTracks.length; k++) (function (idx) {
+        var tk = hlsInst.audioTracks[idx], lb = tk.name || tk.lang || (tr('track') + ' ' + (idx + 1));
+        itemsH.push({ label: lb, on: hlsInst.audioTrack === idx, run: function () { hlsInst.audioTrack = idx; say(tr('audioDone')); } });
+      })(k);
+      openMenu(tr('audioTitle'), itemsH, btn);
+      return;
+    }
     var at = $('video').audioTracks;
     if (!at || at.length < 2) { say(tr('noAudio')); return; }
     var items = [];
@@ -1012,6 +1108,7 @@
     else if (act === 'stop' || act === 'back') closePlayer();
     else if (act === 'quality') openQuality(btn);
     else if (act === 'audio') openAudio(btn);
+    else if (act === 'extplayer') openExternalPlayer();
   }
   function playerKey(k, e) {
     var v = $('video');
@@ -1026,7 +1123,7 @@
       return;
     }
     e.preventDefault();
-    if (k === 13) showOsd(true);
+    if (k === 13) { if (osdVisible()) hideOsd(); else showOsd(true); }
     else if (k === 415 || k === 179) { togglePlay(); showOsd(false); }
     else if (k === 19) { v.pause(); showOsd(false); }
     else if (k === 413) closePlayer();
@@ -1113,8 +1210,8 @@
       try { for (var k in localStorage) if (localStorage.hasOwnProperty(k)) usedBytes += (localStorage[k] || '').length * 2; } catch (e) {}
       var usedKb = Math.max(1, Math.round(usedBytes / 1024)) + ' KB';
       p = '<div class="info-card">' +
-        '<div><b>' + tr('devAppVer') + ':</b> ' + esc(window.EH_VER || '2.2.0') + '</div>' +
-        '<div><b>' + tr('devPlatform') + ':</b> LG webOS Smart TV</div>' +
+        '<div><b>' + tr('devAppVer') + ':</b> ' + esc(window.EH_VER || '2.3.0') + '</div>' +
+        '<div><b>' + tr('devPlatform') + ':</b> ' + (window.AndroidApp ? 'Android Smart Device' : 'Smart TV / Web') + '</div>' +
         '<div><b>' + tr('devRes') + ':</b> ' + window.innerWidth + ' × ' + window.innerHeight + ' (Full HD)</div>' +
         '<div><b>' + tr('devLang') + ':</b> ' + esc(navigator.language || LANG) + '</div>' +
         '<div><b>' + tr('devNet') + ':</b> ' + (navigator.onLine ? 'Online ✅' : 'Offline ❌') + '</div>' +
@@ -1133,8 +1230,12 @@
       p = '<div class="info-card" style="margin-bottom:24px">' + esc(tr('clearWarn')) + '</div>' +
         '<button class="f btn" id="btnClearAllData" style="width:auto;display:inline-block;background:linear-gradient(135deg,#e0245e,#991b1b)">' + tr('clearBtn') + '</button>';
     } else if (sec === 'update') {
-      var curV = (window.EH_VER || '2.2.0') + (window.EH_OTA ? ' (OTA)' : '');
-      p = '<div class="setrow"><div class="setlbl">' + tr('updVer') + ': <b>' + esc(curV) + '</b></div></div>' +
+      var curV = window.EH_VER || '2.3.0';
+      p = '<div class="info-card" style="margin-bottom:24px">' +
+        '<div style="font-size:30px;font-weight:800;color:#fff;margin-bottom:10px">' + esc(tr('updTitle')) + '</div>' +
+        '<div style="margin-bottom:14px">' + esc(tr('updDesc')) + '</div>' +
+        '<div><b>' + tr('updVer') + ':</b> <span style="color:#69f0ae;font-weight:800">' + esc(curV) + '</span></div>' +
+        '</div>' +
         '<div class="setrow"><div class="opts"><button class="f btn" id="btnUpdCheck" style="width:auto;display:inline-block">' + tr('updCheck') + '</button>' +
         '<button class="f btn small" id="btnUpdReset" style="margin:0 16px">' + tr('updReset') + '</button></div></div>' +
         '<div class="setrow"><div class="setlbl" id="updMsg" style="color:#9db9ff">' + esc(updStateMsg) + '</div></div>';
@@ -1198,7 +1299,7 @@
   /* ---------- التحديث من بعيد (مخفي ومشفر) ---------- */
   var _U1 = atob('aHR0cHM6Ly9hbGlmYXRpcnkyLmdpdGh1Yi5pby9lbGhhbmE=');
   var _U2 = atob('aHR0cHM6Ly9hbGlmYXRoeTIuZ2l0aHViLmlvL2VsaGFuYQ==');
-  var APP_VER = '2.2.0';
+  var APP_VER = '2.3.0';
   var updStateMsg = '';
   function setUpdMsg(t) { updStateMsg = t || ''; var e = $('updMsg'); if (e) e.textContent = updStateMsg; }
   function cmpVer(a, b) {
@@ -1483,15 +1584,21 @@
     if (exitFocus && exitFocus.focus) exitFocus.focus();
   }
   function exitApp() {
+    try { if (window.AndroidApp && typeof window.AndroidApp.exitApp === 'function') { window.AndroidApp.exitApp(); return; } } catch (e) {}
+    try { if (window.AndroidApp && typeof window.AndroidApp.closeApp === 'function') { window.AndroidApp.closeApp(); return; } } catch (e) {}
+    try { if (window.AndroidApp && typeof window.AndroidApp.finish === 'function') { window.AndroidApp.finish(); return; } } catch (e) {}
+    try { if (window.Android && typeof window.Android.exitApp === 'function') { window.Android.exitApp(); return; } } catch (e) {}
+    try { if (window.Android && typeof window.Android.closeApp === 'function') { window.Android.closeApp(); return; } } catch (e) {}
+    try { if (navigator.app && typeof navigator.app.exitApp === 'function') { navigator.app.exitApp(); return; } } catch (e) {}
     try { if (window.PalmSystem && PalmSystem.platformBack) { PalmSystem.platformBack(); return; } } catch (e) {}
     try { if (window.webOS && webOS.platformBack) { webOS.platformBack(); return; } } catch (e) {}
-    window.close();
+    try { window.open('', '_self'); window.close(); } catch (e) {}
+    try { history.go(-history.length); } catch (e) {}
   }
 
-
   /* ---------- إضافة حساب من الموبايل بالـ QR (مشفر من الطرف للطرف) ---------- */
-  var PHONE_PAGE = 'https://alifathy2.github.io/elhana/add.html';   // the static page that the phone opens
-  var RELAY = 'https://ntfy.sh/';                                      // public relay; it only ever sees encrypted text
+  var PHONE_PAGE = 'https://alifathy2.github.io/elhana/add.html';
+  var RELAY = 'https://ntfy.sh/';
   var ph = { es: null, timer: null, topic: '', key: null, busy: false, since: '' };
   function phoneOpen() { return !$('phonedlg').classList.contains('hidden'); }
   function b64u(u8) { var s = ''; for (var i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
@@ -1549,7 +1656,7 @@
         return;
       } catch (e) { ph.es = null; }
     }
-    ph.timer = setInterval(function () {      // fallback: poll every 3 s
+    ph.timer = setInterval(function () {
       var x = new XMLHttpRequest();
       x.open('GET', RELAY + ph.topic + '/json?poll=1&since=' + (ph.since || '10m'), true); x.timeout = 8000;
       x.onload = function () {
@@ -1587,34 +1694,48 @@
     setTimeout(function () { s.style.display = 'none'; }, 300);
   }
 
-  /* ---------- الرجوع ---------- */
+  /* ---------- الرجوع والتوافق مع أزرار الأندرويد والسحب ---------- */
   var lastBack = 0;
   function goBack() {
-    lastBack = Date.now();
+    var now = Date.now();
+    if (now - lastBack < 300) return;
+    lastBack = now;
     if (!splashDone) { hideSplash(); return; }
     if (termsOpen()) return;
     if (phoneOpen()) { closePhone(); return; }
     if (bgModalOpen()) { closeBgModal(); return; }
     if (exitOpen()) { hideExit(); return; }
     if (menu.open) { closeMenu(false); return; }
-    if (playerOpen()) { if (pbFocused()) hideOsd(); else closePlayer(); return; }
+    if (playerOpen()) {
+      if (pbFocused()) hideOsd();
+      else closePlayer();
+      return;
+    }
     var s = curScreen();
     if (s === 'detail') { closeDetail(); return; }
     if (s === 'settings' || s === 'main') { showHome(); return; }
     if (s === 'accounts') { if (cfg) showHome(); else showExit(); return; }
     if (s === 'login') {
       var ae = document.activeElement;
-      if (ae && ae.tagName === 'INPUT') { $('btnLogin').focus(); return; }
+      if (ae && ae.tagName === 'INPUT') { ae.blur(); $('btnLogin').focus(); return; }
       if (accounts().length) showAccounts(); else showExit();
       return;
     }
     showExit();
   }
-  try { history.pushState({ s: 1 }, ''); } catch (e) {}
+  window.EH_BACK = goBack;
+  function pushNavGuard() {
+    try { history.pushState({ eh: 1 }, '', '#app'); } catch (e) {}
+  }
+  pushNavGuard();
   window.addEventListener('popstate', function () {
-    try { history.pushState({ s: 1 }, ''); } catch (e) {}
-    if (Date.now() - lastBack > 600) goBack();
+    pushNavGuard();
+    goBack();
   });
+  document.addEventListener('backbutton', function (e) {
+    if (e && e.preventDefault) e.preventDefault();
+    goBack();
+  }, false);
 
   function yellowKey() {
     var s = curScreen();
@@ -1630,15 +1751,15 @@
     var k = e.keyCode;
     if (!splashDone) { e.preventDefault(); hideSplash(); return; }
     if (termsOpen()) { if (k === 37) { e.preventDefault(); move('left'); } else if (k === 39) { e.preventDefault(); move('right'); } else if (k === 38) { e.preventDefault(); $('termsBody').scrollTop -= 80; } else if (k === 40) { e.preventDefault(); $('termsBody').scrollTop += 80; } return; }
-    if (phoneOpen()) { if (k === 461 || k === 27) { e.preventDefault(); closePhone(); } else if (k === 37 || k === 38 || k === 39 || k === 40) e.preventDefault(); return; }
-    if (bgModalOpen()) { if (k === 461 || k === 27) { e.preventDefault(); closeBgModal(); } else if (k === 37) { e.preventDefault(); move('left'); } else if (k === 39) { e.preventDefault(); move('right'); } else if (k === 38) { e.preventDefault(); move('up'); } else if (k === 40) { e.preventDefault(); move('down'); } return; }
+    if (phoneOpen()) { if (k === 461 || k === 27 || k === 4) { e.preventDefault(); closePhone(); } else if (k === 37 || k === 38 || k === 39 || k === 40) e.preventDefault(); return; }
+    if (bgModalOpen()) { if (k === 461 || k === 27 || k === 4) { e.preventDefault(); closeBgModal(); } else if (k === 37) { e.preventDefault(); move('left'); } else if (k === 39) { e.preventDefault(); move('right'); } else if (k === 38) { e.preventDefault(); move('up'); } else if (k === 40) { e.preventDefault(); move('down'); } return; }
     if (exitOpen()) {
-      if (k === 461 || k === 27) { e.preventDefault(); hideExit(); }
+      if (k === 461 || k === 27 || k === 4) { e.preventDefault(); hideExit(); }
       else if (k === 37) { e.preventDefault(); move('left'); }
       else if (k === 39) { e.preventDefault(); move('right'); }
       return;
     }
-    if (k === 461 || k === 27) { e.preventDefault(); goBack(); return; }
+    if (k === 461 || k === 27 || k === 4) { e.preventDefault(); goBack(); return; }
     if (playerOpen()) { playerKey(k, e); return; }
     if (menu.open) {
       if (k === 38) { e.preventDefault(); move('up'); }
@@ -1656,7 +1777,7 @@
 
   document.addEventListener('click', function (e) {
     var t = e.target;
-    if (t.classList && t.classList.contains('heart')) {
+    if (t && t.classList && t.classList.contains('heart')) {
       var par = t.parentNode, idx = par && par.getAttribute && par.getAttribute('data-i');
       if (idx !== null && idx !== undefined) { var it = state.list[+idx]; if (it) { toggleFav(itType(), it); updHearts(); } }
       return;
@@ -1664,10 +1785,11 @@
     while (t && t !== document && !(t.classList && t.classList.contains('f'))) t = t.parentNode;
     if (!t || t === document) return;
     var c = t.classList;
+    if (t.id === 'btnHome') { showHome(); return; }
     if (c.contains('pb')) pbAction(t.getAttribute('data-act'), t);
     else if (c.contains('pm')) { var mi = menu.items[+t.getAttribute('data-i')]; closeMenu(false); if (mi && mi.run) mi.run(); }
     else if (c.contains('cat')) { $('search').value = ''; openCat(t.getAttribute('data-id'), true); }
-    else if (c.contains('tab')) setType(t.getAttribute('data-type'), false);
+    else if (c.contains('tab') && t.hasAttribute('data-type')) setType(t.getAttribute('data-type'), false);
     else if (c.contains('tile')) enterSection(t.getAttribute('data-type'));
     else if (c.contains('more')) renderMore();
     else if (c.contains('item') && t.hasAttribute('data-i')) onItem(+t.getAttribute('data-i'));
@@ -1710,7 +1832,6 @@
     else if (t.id === 'btnUpdReset') resetUpdate();
     else if (t.id === 'btnSettings') showSettings();
     else if (t.id === 'btnLogout2') showAccounts();
-    else if (t.id === 'btnHome') showHome();
     else if (t.id === 'btnCats') { toggleCats(); var g = $('grid').querySelector('.f'); if (g && $('main').classList.contains('nocats')) g.focus(); }
     else if (t.id === 'btnExitYes') exitApp();
     else if (t.id === 'btnExitNo') hideExit();
