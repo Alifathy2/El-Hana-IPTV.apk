@@ -19,58 +19,34 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      # Accept pre-installed Android SDK licenses
+      # قبول تراخيص Android SDK المثبت مسبقاً
       - name: Accept Android SDK licenses
         run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null || true
 
-      # Resolve file conflicts and align AGP versions to 8.5.2
-      - name: Fix Conflict and Build Project Structure
+      # تهيئة المشروع بشكل حتمي ومضمون 100% لتسجيل مهمة assembleRelease
+      - name: Guarantee Valid Android App Structure
         run: |
-          # 1. Move conflicting 'app' file if it is not a directory
+          echo "=== 1. تنظيف أي تعارض في اسم مجلد app ==="
           if [ -e "app" ] && [ ! -d "app" ]; then
             mv app app_file_backup
           fi
-
-          # 2. Check if app/build.gradle already exists in a subdirectory
-          APP_GRADLE=$(find . -maxdepth 3 -path "*/app/build.gradle*" | head -n 1)
-          if [ -n "$APP_GRADLE" ]; then
-            PROJECT_ROOT=$(dirname $(dirname "$APP_GRADLE"))
-            echo "PROJECT_ROOT=$PROJECT_ROOT" >> $GITHUB_ENV
-            exit 0
-          fi
-
-          echo "PROJECT_ROOT=." >> $GITHUB_ENV
           mkdir -p app/src/main/java/com/elhana/iptv
           mkdir -p app/src/main/res/values
 
-          # 3. Move root build.gradle into app/ if it contains the application plugin
+          echo "=== 2. نقل الملفات المبعثرة في الجذر إلى أماكنها الصحيحة ==="
+          # إذا كان build.gradle الرئيسي هو ملف التطبيق نفسه، انقله إلى app/
           if [ -f "build.gradle" ] && grep -q "com.android.application" build.gradle; then
             mv build.gradle app/build.gradle
           fi
-
-          # 4. Ensure AndroidManifest.xml is in place
           if [ -f "AndroidManifest.xml" ]; then
             mv AndroidManifest.xml app/src/main/AndroidManifest.xml
           fi
-
-          if [ ! -f "app/src/main/AndroidManifest.xml" ]; then
-            cat << 'EOF' > app/src/main/AndroidManifest.xml
-          <?xml version="1.0" encoding="utf-8"?>
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-              <uses-permission android:name="android.permission.INTERNET" />
-              <application
-                  android:allowBackup="true"
-                  android:label="El-Hana IPTV"
-                  android:supportsRtl="true"
-                  android:theme="@style/Theme.AppCompat.NoActionBar">
-              </application>
-          </manifest>
-          EOF
+          if [ -d "src" ]; then
+            cp -rn src/* app/src/ 2>/dev/null || true
           fi
 
-          # 5. Create settings.gradle if missing
-          if [ ! -f "settings.gradle" ] && [ ! -f "settings.gradle.kts" ]; then
-            cat << 'EOF' > settings.gradle
+          echo "=== 3. فرض ملف settings.gradle قياسي ==="
+          cat << 'EOF' > settings.gradle
           pluginManagement {
               repositories {
                   google()
@@ -88,9 +64,8 @@ jobs:
           rootProject.name = "El-Hana-IPTV"
           include ':app'
           EOF
-          fi
 
-          # 6. Create root build.gradle matching AGP 8.5.2
+          echo "=== 4. فرض ملف build.gradle الرئيسي بإصدار 8.5.2 ==="
           cat << 'EOF' > build.gradle
           plugins {
               id 'com.android.application' version '8.5.2' apply false
@@ -98,11 +73,10 @@ jobs:
           }
           EOF
 
-          # 7. Strip duplicate version number from app/build.gradle if root build.gradle defines it
-          if [ -f "app/build.gradle" ]; then
-            sed -i "s/id 'com.android.application' version '8.5.2'/id 'com.android.application'/g" app/build.gradle
-            sed -i 's/id "com.android.application" version "8.5.2"/id "com.android.application"/g' app/build.gradle
-          else
+          echo "=== 5. التحقق من app/build.gradle وإصلاحه أو إنشائه ==="
+          # إذا كان app/build.gradle غير موجود أو لا يحتوي على com.android.application، أنشئ ملفاً سليماً
+          if [ ! -f "app/build.gradle" ] || ! grep -q "com.android.application" app/build.gradle; then
+            echo "⚠️ app/build.gradle مفقود أو غير صالح، جاري إنشاء ملف قياسي سليم..."
             cat << 'EOF' > app/build.gradle
           plugins {
               id 'com.android.application'
@@ -137,22 +111,43 @@ jobs:
               implementation 'com.google.android.material:material:1.11.0'
           }
           EOF
+          else
+            # إزالة رقم الإصدار المكرر من app/build.gradle حتى لا يتعارض مع build.gradle الرئيسي
+            sed -i -E "s/id ['\"]com\.android\.application['\"] version ['\"][^'\"]+['\"]/id 'com.android.application'/g" app/build.gradle
+            sed -i -E "s/id ['\"]org\.jetbrains\.kotlin\.android['\"] version ['\"][^'\"]+['\"]/id 'org.jetbrains.kotlin.android'/g" app/build.gradle
           fi
 
-      # Setup Gradle 8.7 (fully compatible with AGP 8.5.2)
+          echo "=== 6. ضمان وجود AndroidManifest.xml ==="
+          if [ ! -f "app/src/main/AndroidManifest.xml" ]; then
+            cat << 'EOF' > app/src/main/AndroidManifest.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.INTERNET" />
+              <application
+                  android:allowBackup="true"
+                  android:label="El-Hana IPTV"
+                  android:supportsRtl="true"
+                  android:theme="@style/Theme.AppCompat.NoActionBar">
+              </application>
+          </manifest>
+          EOF
+          fi
+
+          echo "=== معاينة app/build.gradle النهائي للتأكد ==="
+          cat app/build.gradle
+
+      # إعداد Gradle 8.7 المتوافق تماماً مع AGP 8.5.2
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.7'
 
-      # Build release APK
+      # بناء نسخة الـ Release
       - name: Build release APK
-        working-directory: ${{ env.PROJECT_ROOT }}
         run: gradle :app:assembleRelease --no-daemon --stacktrace
 
-      # Align and sign APK with a temporary keystore for immediate installation
+      # تجهيز وتوقيع الـ APK تلقائياً بمفتاح مؤقت ليعمل على أي موبايل فوراً
       - name: Sign APK automatically
-        working-directory: ${{ env.PROJECT_ROOT }}
         run: |
           if [ -f app/build/outputs/apk/release/app-release-unsigned.apk ]; then
             RAW_APK="app/build/outputs/apk/release/app-release-unsigned.apk"
