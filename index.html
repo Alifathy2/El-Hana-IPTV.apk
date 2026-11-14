@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>El Hana IPTV</title>
+<meta name="viewport" content="width=1920">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="topbar">
+  <span id="tbClock"></span>
+  <span id="tbSpeed"><span id="spDown">&#9660; —</span><span id="spUp">&#9650; —</span></span>
+</div>
+
+<!-- Add account (Xtream / M3U) -->
+<section id="login" class="screen hidden">
+  <button class="f btn small backbtn" id="btnBackLogin" data-i18n="back"></button>
+  <div class="login-box">
+    <img class="logo-big" src="logo.png" alt="El Hana IPTV">
+    <div class="typesw">
+      <button class="f opt on" data-ltype="xtream">Xtream Codes</button>
+      <button class="f opt" data-ltype="m3u">M3U</button>
+    </div>
+    <input class="f" id="inName" data-i18n-ph="name_ph">
+    <input class="f xt" id="inHost" data-i18n-ph="host_ph" dir="ltr">
+    <input class="f xt" id="inUser" data-i18n-ph="user_ph" dir="ltr">
+    <input class="f xt" id="inPass" data-i18n-ph="pass_ph" dir="ltr">
+    <input class="f m3 hidden" id="inUrl" data-i18n-ph="m3u_ph" dir="ltr">
+    <button class="f btn" id="btnLogin" data-i18n="addSignIn"></button>
+    <button class="f btn small phone-add-btn" id="btnPhoneAdd" data-i18n="phoneAddBtn"></button>
+    <p id="loginMsg" class="msg"></p>
+    <p class="disc" data-i18n="disc"></p>
+  </div>
+  <button class="f btn small langbtn lang-login"></button>
+</section>
+
+<!-- Accounts list -->
+<section id="accounts" class="screen hidden">
+  <button class="f btn small backbtn" id="btnBackAcc" data-i18n="back"></button>
+  <div class="acc-wrap">
+    <h2 data-i18n="accountsT"></h2>
+    <div id="accList"></div>
+    <button class="f btn" id="btnAddAcc" data-i18n="addAcc"></button>
+    <p id="accMsg" class="msg"></p>
+  </div>
+</section>
+
+<!-- Home -->
+<section id="home" class="screen hidden">
+  <div class="home-top">
+    <div class="brand">
+      <div class="brand-logo-wrap"><img src="logo.png" alt=""></div>
+      <div class="brand-txt">
+        <div class="brand-row"><span class="brand-main hero-font">EL HANA</span><span class="brand-sub">IPTV</span></div>
+        <span class="brand-tag">4K ULTRA STREAMING</span>
+      </div>
+    </div>
+    <div class="home-widget" id="homeWidget">
+      <div class="hw-time" id="hwTime">--:--</div>
+      <div class="hw-mid">
+        <div class="hw-date" id="hwDate">----/--/--</div>
+        <div class="hw-loc" id="hwLoc">...</div>
+      </div>
+      <div class="hw-weather" id="hwWeather">--°C</div>
+    </div>
+    <div class="home-right">
+      <div class="acct"><div id="acctName"></div><div id="expiry" class="expiry"></div></div>
+      <div class="home-ctrl-btns">
+        <button class="f btn small refresh-home-btn" id="btnHomeRefresh" data-i18n="refreshBtn"></button>
+        <button class="f btn small exit-home-btn" id="btnHomeExit" data-i18n="exitAppBtn"></button>
+      </div>
+    </div>
+  </div>
+  <div class="tiles">
+    <button class="f tile t-live" data-type="live">
+      <svg viewBox="0 0 64 64" width="150" height="150" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="14" width="52" height="34" rx="5"/><path d="M22 56h20M32 48v8M24 6l8 8 8-8"/><circle cx="32" cy="31" r="3" fill="#fff"/><path d="M24 23a11 11 0 0 0 0 16M40 23a11 11 0 0 1 0 16"/></svg>
+      <span data-i18n="live"></span>
+    </button>
+    <button class="f tile t-movies" data-type="movies">
+      <svg viewBox="0 0 64 64" width="150" height="150" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="24" width="52" height="32" rx="4"/><path d="M6 24l6-12 12 6-6 12M26 18l12 6-6-12 12 6 6 6M6 36h52"/><path d="M28 42l10 6-10 6z" fill="#fff"/></svg>
+      <span data-i18n="movies"></span>
+    </button>
+    <button class="f tile t-series" data-type="series">
+      <svg viewBox="0 0 64 64" width="150" height="150" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><rect x="14" y="18" width="44" height="34" rx="5"/><path d="M8 44V14a4 4 0 0 1 4-4h34"/><path d="M30 28l12 7-12 7z" fill="#fff"/></svg>
+      <span data-i18n="series"></span>
+    </button>
+    <button class="f tile t-fav" data-type="fav">
+      <svg viewBox="0 0 64 64" width="150" height="150" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M32 56S8 41 8 24a12 12 0 0 1 24-4 12 12 0 0 1 24 4c0 17-24 32-24 32z"/></svg>
+      <span data-i18n="favorites"></span>
+    </button>
+  </div>
+  <div class="home-bottom">
+    <button class="f btn small" id="btnSettings" data-i18n="settings"></button>
+    <button class="f btn small" id="btnHomeBg" data-i18n="changeBgBtn"></button>
+    <button class="f btn small" id="btnLogout2" data-i18n="switchAcct"></button>
+    <input type="file" id="bgFileInput" accept="image/*" class="hidden">
+  </div>
+</section>
+
+<!-- Settings -->
+<section id="settings" class="screen hidden">
+  <button class="f btn small backbtn" id="btnBackSet" data-i18n="back"></button>
+  <div class="set-wrap">
+    <div id="setSecs" class="setsecs"></div>
+    <div id="setPanel" class="setpanel"></div>
+  </div>
+</section>
+
+<!-- Browse -->
+<section id="main" class="screen hidden">
+  <header>
+    <nav id="tabs">
+      <button class="f tab home-tab" id="btnHome"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h5v-6h4v6h5V10"/></svg><span data-i18n="home"></span></button>
+      <button class="f catsw" id="btnCats"><span class="catsw-lbl" data-i18n="catsLbl"></span><span class="sw-track"><i class="sw-knob"></i></span></button>
+      <button class="f tab" data-type="live" data-i18n="live"></button>
+      <button class="f tab" data-type="movies" data-i18n="movies"></button>
+      <button class="f tab" data-type="series" data-i18n="series"></button>
+      <button class="f tab" data-type="fav">&#9829; <span data-i18n="favorites"></span></button>
+    </nav>
+    <div class="head-tools">
+      <input class="f" id="search" data-i18n-ph="search_ph">
+    </div>
+  </header>
+  <div class="body">
+    <aside id="cats"></aside>
+    <main id="content">
+      <div class="crumbrow"><div id="crumb" class="crumb"></div><div id="favhint" class="favhint" data-i18n="favHint"></div></div>
+      <div id="grid"></div>
+    </main>
+  </div>
+</section>
+
+<!-- Details page -->
+<section id="detail" class="screen hidden">
+  <button class="f btn small backbtn" id="btnBackDet" data-i18n="back"></button>
+  <div class="det">
+    <div class="det-poster" id="detPoster"></div>
+    <div class="det-info">
+      <h1 id="detTitle"></h1>
+      <div class="det-meta-row"><div id="detMeta" class="det-meta"></div><div id="detImdb" class="imdb-pill hidden"></div></div>
+      <p id="detPlot" class="det-plot"></p>
+      <div id="detPraise" class="det-praise hidden"></div>
+      <div id="detExtra" class="det-extra"></div>
+      <div class="det-btns">
+        <button class="f btn" id="btnPlay"></button>
+        <button class="f btn small" id="btnFav"></button>
+        <button class="f btn small hidden" id="btnSeason"></button>
+      </div>
+    </div>
+  </div>
+  <div id="detEps" class="det-eps"></div>
+</section>
+
+<!-- Player -->
+<section id="player" class="hidden">
+  <video id="video" autoplay></video>
+  <div id="osd" class="osd hidden">
+    <div id="osdTitle"></div>
+    <div class="vodonly"><div id="osdBar"><div id="osdFill"></div></div></div>
+    <div id="osdTime"></div>
+    <div class="pbar">
+      <button class="f pb txt" data-act="back">&#8592; <span data-i18n="back"></span></button>
+      <button class="f pb vodonly" data-act="rew" data-i18n-title="rew">
+        <svg viewBox="0 0 24 24" width="40" height="40" fill="#fff"><path d="M11 6v12l-8.5-6zM21 6v12l-8.5-6z"/></svg><small>10</small></button>
+      <button class="f pb" id="pbPlay" data-act="play"></button>
+      <button class="f pb" data-act="stop" data-i18n-title="stop">
+        <svg viewBox="0 0 24 24" width="40" height="40" fill="#fff"><rect x="6" y="6" width="12" height="12" rx="2"/></svg></button>
+      <button class="f pb vodonly" data-act="fwd" data-i18n-title="fwd">
+        <svg viewBox="0 0 24 24" width="40" height="40" fill="#fff"><path d="M13 6v12l8.5-6zM3 6v12l8.5-6z"/></svg><small>30</small></button>
+      <span class="sep"></span>
+      <button class="f pb txt" data-act="quality" data-i18n="btnQuality"></button>
+      <button class="f pb txt" data-act="audio" data-i18n="btnAudio"></button>
+    </div>
+  </div>
+  <div id="pmenu" class="pmenu hidden"></div>
+  <div id="playerMsg" class="player-msg hidden"></div>
+</section>
+
+<div id="ddmenu" class="pmenu dd hidden"></div>
+<div id="loading" class="loading hidden" data-i18n="loading"></div>
+<div id="toast" class="toast hidden"></div>
+
+<!-- Exit confirmation (slides up) -->
+<div id="exitdlg" class="modal hidden">
+  <div class="modal-box">
+    <div class="modal-t" data-i18n="exitQ"></div>
+    <div class="modal-b">
+      <button class="f btn small" id="btnExitNo" data-i18n="cancel"></button>
+      <button class="f btn" id="btnExitYes" data-i18n="ok"></button>
+    </div>
+  </div>
+</div>
+
+
+<!-- Privacy Policy & Terms Acceptance Modal (First Run) -->
+<div id="termsdlg" class="modal hidden">
+  <div class="modal-box terms-box">
+    <h2 class="terms-title" data-i18n="termsTitle"></h2>
+    <div class="terms-body" id="termsBody" data-i18n="termsText"></div>
+    <div class="modal-b" style="margin-top:28px">
+      <button class="f btn" id="btnTermsAccept" style="width:340px" data-i18n="termsAccept"></button>
+      <button class="f btn small" id="btnTermsDecline" style="width:220px" data-i18n="termsDecline"></button>
+    </div>
+  </div>
+</div>
+
+
+<!-- Custom Background Modal (Phone Upload + Local File + URL) -->
+<div id="bgdlg" class="modal hidden">
+  <div class="modal-box bg-modal-box">
+    <h2 class="terms-title" data-i18n="bgModalTitle"></h2>
+    <div class="bg-modal-grid">
+      <div class="bg-col">
+        <div class="bg-step-t" data-i18n="bgPhoneTitle"></div>
+        <p class="bg-step-d" data-i18n="bgPhoneDesc"></p>
+        <div id="bgQrWrap" class="bg-qr-wrap"></div>
+      </div>
+      <div class="bg-col">
+        <div class="bg-step-t" data-i18n="bgDirectTitle"></div>
+        <button class="f btn" id="btnBgLocalFile" style="width:100%;margin-bottom:16px" data-i18n="bgPickDevice"></button>
+        <input class="f" id="inBgUrl" data-i18n-ph="bgUrlPh" dir="ltr" style="width:100%;padding:14px 20px;margin-bottom:14px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15)">
+        <button class="f btn small" id="btnBgApplyUrl" style="width:100%;margin-bottom:14px" data-i18n="bgApplyUrlBtn"></button>
+        <button class="f btn small" id="btnBgResetModal" style="width:100%;background:rgba(255,77,109,.2)" data-i18n="bgResetBtn"></button>
+      </div>
+    </div>
+    <p class="bg-warn" data-i18n="bgWarn"></p>
+    <div class="modal-b" style="margin-top:16px">
+      <button class="f btn small" id="btnBgClose" style="width:240px" data-i18n="back"></button>
+    </div>
+  </div>
+</div>
+
+<!-- Add account from phone (QR) -->
+<div id="phonedlg" class="modal hidden">
+  <div class="modal-box phone-box">
+    <h2 class="terms-title" data-i18n="phoneTitle"></h2>
+    <div class="phone-grid">
+      <div class="phone-qr"><canvas id="qrCanvas" width="340" height="340"></canvas></div>
+      <div class="phone-steps">
+        <p data-i18n="phoneStep1"></p>
+        <p data-i18n="phoneStep2"></p>
+        <div id="phoneUrl" class="phone-url"></div>
+        <div id="phoneStatus" class="phone-status"></div>
+        <div class="phone-secure" data-i18n="phoneSecure"></div>
+      </div>
+    </div>
+    <div class="modal-b" style="margin-top:20px">
+      <button class="f btn small" id="btnPhoneClose" style="width:260px" data-i18n="cancel"></button>
+    </div>
+  </div>
+</div>
+
+<!-- Welcome / splash (short) -->
+<div id="splash">
+  <div class="splash-logo-wrap"><div class="splash-ring"></div><img src="logo.png" alt="El Hana IPTV"></div>
+  <div class="splash-name hero-font">EL HANA IPTV</div>
+</div>
+
+<script src="qr.js"></script>
+<script src="ota.js"></script>
+</body>
+</html>

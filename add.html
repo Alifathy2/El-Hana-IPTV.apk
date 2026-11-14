@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>El Hana IPTV – Add account</title>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;font-family:system-ui,-apple-system,"Segoe UI",Tahoma,Arial,sans-serif;color:#eef2fb;background:#090e1c radial-gradient(ellipse at 20% 0%,#1b2a5e,rgba(9,14,28,0) 60%);display:flex;justify-content:center}
+  .card{width:100%;max-width:520px;padding:22px 20px 40px}
+  h1{font-size:24px;margin:8px 0 4px} p.sub{margin:0 0 18px;color:#9aa6c8;font-size:15px;line-height:1.5}
+  .seg{display:flex;background:rgba(255,255,255,.08);border-radius:14px;padding:4px;margin-bottom:16px}
+  .seg button{flex:1;padding:12px;border:0;border-radius:11px;background:transparent;color:#cbd5f0;font-size:16px;font-weight:600}
+  .seg button.on{background:linear-gradient(135deg,#5f8fff,#8a6bff);color:#fff}
+  label{display:block;font-size:14px;color:#9aa6c8;margin:12px 2px 6px}
+  input{width:100%;padding:14px;border-radius:12px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.07);color:#fff;font-size:16px}
+  input:focus{outline:2px solid #6f9bff}
+  .go{margin-top:22px;width:100%;padding:15px;border:0;border-radius:14px;background:linear-gradient(135deg,#5f8fff,#8a6bff);color:#fff;font-size:18px;font-weight:700}
+  .go:disabled{opacity:.5}
+  .msg{margin-top:16px;padding:12px 14px;border-radius:12px;font-size:15px;line-height:1.5;display:none}
+  .msg.ok{display:block;background:rgba(52,199,89,.15);border:1px solid rgba(52,199,89,.5)}
+  .msg.err{display:block;background:rgba(255,90,90,.14);border:1px solid rgba(255,90,90,.5)}
+  .note{margin-top:22px;font-size:13px;color:#7f8bb0;line-height:1.6}
+  .hide{display:none}
+</style>
+</head>
+<body>
+<div class="card">
+  <h1 id="t_title"></h1>
+  <p class="sub" id="t_sub"></p>
+  <div class="seg"><button id="bx" class="on" type="button">Xtream Codes</button><button id="bm" type="button">M3U</button></div>
+  <label id="t_name"></label><input id="name" autocomplete="off">
+  <div id="fx">
+    <label id="t_host"></label><input id="host" inputmode="url" autocapitalize="none" autocomplete="off" placeholder="http://example.com:8080">
+    <label id="t_user"></label><input id="user" autocapitalize="none" autocomplete="off">
+    <label id="t_pass"></label><input id="pass" autocapitalize="none" autocomplete="off">
+  </div>
+  <div id="fm" class="hide">
+    <label id="t_url"></label><input id="url" inputmode="url" autocapitalize="none" autocomplete="off" placeholder="http://example.com/list.m3u">
+  </div>
+  <button class="go" id="go" type="button"></button>
+  <div class="msg" id="msg"></div>
+  <div class="note" id="t_note"></div>
+</div>
+<script>
+(function () {
+  var ar = /^ar/i.test(navigator.language || '');
+  var T = ar ? {
+    title: 'إضافة حساب على الشاشة', sub: 'اكتب بيانات اشتراكك وسيتم إرسالها للشاشة مشفّرة.', name: 'اسم الحساب (اختياري)', host: 'رابط السيرفر', user: 'اسم المستخدم', pass: 'كلمة المرور', url: 'رابط ملف M3U',
+    go: 'إرسال للشاشة', sending: 'جاري الإرسال…', ok: 'تم الإرسال ✔ — راجع الشاشة.', bad: 'الرابط ناقص أو منتهي. امسح الكود من الشاشة مرة تانية.', need: 'اكمل كل الخانات المطلوبة.', fail: 'تعذر الإرسال، تأكد من الإنترنت وجرّب تاني.',
+    note: 'البيانات بتتشفر داخل الموبايل بمفتاح موجود في الكود الظاهر على الشاشة فقط، ولا يمكن لأي خادم وسيط قراءتها. لا تشارك هذا الرابط مع أحد.'
+  } : {
+    title: 'Add an account to your TV', sub: 'Enter your subscription details; they are sent to your TV encrypted.', name: 'Account name (optional)', host: 'Server URL', user: 'Username', pass: 'Password', url: 'M3U playlist URL',
+    go: 'Send to TV', sending: 'Sending…', ok: 'Sent ✔ — check your TV.', bad: 'This link is incomplete or expired. Scan the code on the TV again.', need: 'Please fill in the required fields.', fail: 'Could not send. Check your internet connection and try again.',
+    note: 'Your details are encrypted on this phone with a key that only exists in the code shown on your TV, so no relay server can read them. Do not share this link.'
+  };
+  if (ar) { document.documentElement.lang = 'ar'; document.documentElement.dir = 'rtl'; }
+  function $(i) { return document.getElementById(i); }
+  $('t_title').textContent = T.title; $('t_sub').textContent = T.sub; $('t_name').textContent = T.name; $('t_host').textContent = T.host;
+  $('t_user').textContent = T.user; $('t_pass').textContent = T.pass; $('t_url').textContent = T.url; $('go').textContent = T.go; $('t_note').textContent = T.note;
+  var mode = 'xtream';
+  function setMode(m) { mode = m; $('bx').className = m === 'xtream' ? 'on' : ''; $('bm').className = m === 'm3u' ? 'on' : ''; $('fx').className = m === 'xtream' ? '' : 'hide'; $('fm').className = m === 'm3u' ? '' : 'hide'; }
+  $('bx').onclick = function () { setMode('xtream'); }; $('bm').onclick = function () { setMode('m3u'); };
+
+  var topic = (/[?&]t=([A-Za-z0-9]+)/.exec(location.search) || [])[1], keyB64 = (location.hash || '').replace(/^#/, '');
+  function show(cls, txt) { var m = $('msg'); m.className = 'msg ' + cls; m.textContent = txt; }
+  function b64uToBytes(s) { s = s.replace(/-/g, '+').replace(/_/g, '/'); while (s.length % 4) s += '='; var r = atob(s), u = new Uint8Array(r.length); for (var i = 0; i < r.length; i++) u[i] = r.charCodeAt(i); return u; }
+  function bytesToB64u(u) { var s = ''; for (var i = 0; i < u.length; i++) s += String.fromCharCode(u[i]); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
+  if (!topic || keyB64.length < 20 || !window.crypto || !crypto.subtle) { show('err', T.bad); $('go').disabled = true; }
+
+  $('go').onclick = function () {
+    var p;
+    if (mode === 'm3u') { if (!$('url').value.trim()) { show('err', T.need); return; } p = { t: 'm3u', name: $('name').value.trim(), url: $('url').value.trim() }; }
+    else { if (!$('host').value.trim() || !$('user').value.trim() || !$('pass').value.trim()) { show('err', T.need); return; }
+      p = { t: 'xtream', name: $('name').value.trim(), host: $('host').value.trim(), user: $('user').value.trim(), pass: $('pass').value.trim() }; }
+    $('go').disabled = true; show('ok', T.sending);
+    var iv = crypto.getRandomValues(new Uint8Array(12)), data = new TextEncoder().encode(JSON.stringify(p));
+    crypto.subtle.importKey('raw', b64uToBytes(keyB64), { name: 'AES-GCM' }, false, ['encrypt']).then(function (k) {
+      return crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, k, data);
+    }).then(function (ct) {
+      var out = new Uint8Array(12 + ct.byteLength); out.set(iv, 0); out.set(new Uint8Array(ct), 12);
+      return fetch('https://ntfy.sh/' + topic, { method: 'POST', body: bytesToB64u(out), headers: { 'Content-Type': 'text/plain' } });
+    }).then(function (r) { if (!r.ok) throw new Error('http'); show('ok', T.ok); })
+      .catch(function () { show('err', T.fail); $('go').disabled = false; });
+  };
+})();
+</script>
+</body>
+</html>
