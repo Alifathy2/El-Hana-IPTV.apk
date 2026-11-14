@@ -22,7 +22,7 @@ jobs:
       - name: Accept Android SDK licenses
         run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null || true
 
-      - name: Setup Valid Android Project
+      - name: Setup Valid Android Project with Launcher & Icon
         run: |
           if [ -e "app" ] && [ ! -d "app" ]; then
             mv app app_file_backup
@@ -31,17 +31,24 @@ jobs:
 
           mkdir -p app/src/main/java/com/elhana/iptv
           mkdir -p app/src/main/res/values
+          mkdir -p app/src/main/res/mipmap-xxxhdpi
 
+          # 1. نسخ صورة الأيقونة المرفوعة في المستودع إلى مجلد الأيقونات
+          ICON_FILE=$(find . -maxdepth 2 \( -iname "ic_launcher.*" -o -iname "*.png" -o -iname "*.jpg" -o -iname "*.jpeg" \) | head -n 1)
+          if [ -n "$ICON_FILE" ]; then
+            cp "$ICON_FILE" app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+            echo "✅ تم تعيين الأيقونة من الملف: $ICON_FILE"
+          fi
+
+          # 2. نقل الملفات المبعثرة في الجذر إلى أماكنها الصحيحة إن وجدت
           if [ -f "build.gradle" ] && grep -q "com.android.application" build.gradle; then
             mv build.gradle app/build.gradle
-          fi
-          if [ -f "AndroidManifest.xml" ]; then
-            mv AndroidManifest.xml app/src/main/AndroidManifest.xml
           fi
           if [ -d "src" ]; then
             cp -rn src/* app/src/ 2>/dev/null || true
           fi
 
+          # 3. إنشاء settings.gradle و build.gradle و gradle.properties
           printf '%s\n' \
             'pluginManagement {' \
             '    repositories {' \
@@ -66,7 +73,6 @@ jobs:
             '    id "org.jetbrains.kotlin.android" version "1.9.24" apply false' \
             '}' > build.gradle
 
-          # تفعيل AndroidX و Jetifier لمنع فشل checkReleaseAarMetadata
           printf '%s\n' \
             'android.useAndroidX=true' \
             'android.enableJetifier=true' \
@@ -107,16 +113,56 @@ jobs:
             sed -i -E "s/id ['\"]org\.jetbrains\.kotlin\.android['\"] version ['\"][^'\"]+['\"]/id 'org.jetbrains.kotlin.android'/g" app/build.gradle
           fi
 
-          if [ ! -f "app/src/main/AndroidManifest.xml" ]; then
+          # 4. إنشاء شاشة رئيسية (MainActivity) إذا لم يكن هناك كود Java/Kotlin مرفوع
+          EXISTING_JAVA=$(find app/src -name "*.java" -o -name "*.kt" | head -n 1)
+          if [ -z "$EXISTING_JAVA" ]; then
+            printf '%s\n' \
+              'package com.elhana.iptv;' \
+              'import android.os.Bundle;' \
+              'import android.webkit.WebView;' \
+              'import android.webkit.WebViewClient;' \
+              'import androidx.appcompat.app.AppCompatActivity;' \
+              'public class MainActivity extends AppCompatActivity {' \
+              '    @Override' \
+              '    protected void onCreate(Bundle savedInstanceState) {' \
+              '        super.onCreate(savedInstanceState);' \
+              '        WebView webView = new WebView(this);' \
+              '        webView.getSettings().setJavaScriptEnabled(true);' \
+              '        webView.setWebViewClient(new WebViewClient());' \
+              '        setContentView(webView);' \
+              '    }' \
+              '}' > app/src/main/java/com/elhana/iptv/MainActivity.java
+          fi
+
+          # 5. تحديث AndroidManifest.xml لإضافة LAUNCHER وإظهار الأيقونة وزر Open
+          ICON_ATTR=""
+          if [ -f "app/src/main/res/mipmap-xxxhdpi/ic_launcher.png" ]; then
+            ICON_ATTR='android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher"'
+          fi
+
+          if [ -f "AndroidManifest.xml" ]; then
+            mv AndroidManifest.xml app/src/main/AndroidManifest.xml
+          fi
+
+          if [ ! -f "app/src/main/AndroidManifest.xml" ] || ! grep -q "android.intent.category.LAUNCHER" app/src/main/AndroidManifest.xml; then
             printf '%s\n' \
               '<?xml version="1.0" encoding="utf-8"?>' \
               '<manifest xmlns:android="http://schemas.android.com/apk/res/android">' \
               '    <uses-permission android:name="android.permission.INTERNET" />' \
               '    <application' \
               '        android:allowBackup="true"' \
-              '        android:label="El-Hana IPTV"' \
+              "        $ICON_ATTR" \
+              '        android:label="El Hana IPTV"' \
               '        android:supportsRtl="true"' \
               '        android:theme="@style/Theme.AppCompat.NoActionBar">' \
+              '        <activity' \
+              '            android:name=".MainActivity"' \
+              '            android:exported="true">' \
+              '            <intent-filter>' \
+              '                <action android:name="android.intent.action.MAIN" />' \
+              '                <category android:name="android.intent.category.LAUNCHER" />' \
+              '            </intent-filter>' \
+              '        </activity>' \
               '    </application>' \
               '</manifest>' > app/src/main/AndroidManifest.xml
           fi
@@ -166,6 +212,7 @@ jobs:
       - name: Publish a download link (GitHub Release)
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: build-${{ github.run_number }}
-          name: El Hana IPTV (build ${{ github.run_number }})
+          tag_name: v1.0.${{ github.run_number }}
+          name: El Hana IPTV v1.0.${{ github.run_number }}
+          make_latest: true
           files: El-Hana-IPTV.apk
